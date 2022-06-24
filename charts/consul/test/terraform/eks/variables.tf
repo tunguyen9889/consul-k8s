@@ -25,3 +25,9 @@ variable "tags" {
   default     = {}
   description = "Tags to attach to the created resources."
 }
+
+variable "fargate" {
+  type        = bool
+  default     = false
+  description = "Whether to configure this cluster to run workloads on Fargate."
+}

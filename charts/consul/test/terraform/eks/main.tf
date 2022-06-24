@@ -27,12 +27,16 @@ module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "3.11.0"
 
-  name = "consul-k8s-${random_id.suffix[count.index].dec}"
+  name                 = "consul-k8s-${random_id.suffix[count.index].dec}"
   # The cidr range needs to be unique in each VPC to allow setting up a peering connection.
   cidr                 = format("10.%s.0.0/16", count.index)
   azs                  = data.aws_availability_zones.available.names
-  private_subnets      = [format("10.%s.1.0/24", count.index), format("10.%s.2.0/24", count.index), format("10.%s.3.0/24", count.index)]
-  public_subnets       = [format("10.%s.4.0/24", count.index), format("10.%s.5.0/24", count.index), format("10.%s.6.0/24", count.index)]
+  private_subnets      = [
+    format("10.%s.1.0/24", count.index), format("10.%s.2.0/24", count.index), format("10.%s.3.0/24", count.index)
+  ]
+  public_subnets       = [
+    format("10.%s.4.0/24", count.index), format("10.%s.5.0/24", count.index), format("10.%s.6.0/24", count.index)
+  ]
   enable_nat_gateway   = true
   single_nat_gateway   = true
   enable_dns_hostnames = true
@@ -64,19 +68,82 @@ module "eks" {
 
   node_groups = {
     first = {
-      desired_capacity = 3
-      max_capacity     = 3
-      min_capacity     = 3
+      // When we're running on Fargate, we still need nodes to run coreDNS, however,
+      // 1 node should be sufficient.
+      desired_capacity = var.fargate ? 1 : 3
+      max_capacity     = var.fargate ? 1 : 3
+      min_capacity     = var.fargate ? 1 : 3
 
       instance_type = "m5.large"
     }
   }
 
+  fargate_profiles = var.fargate ? {
+    default = {
+      name      = "default"
+      selectors = [
+        {
+          namespace = "consul"
+        },
+        {
+          namespace = "default"
+        }
+      ]
+
+      tags = {
+        Owner = "default"
+      }
+
+      timeouts = {
+        create = "20m"
+        delete = "20m"
+      }
+    }
+  } : {}
+
   manage_aws_auth        = false
   write_kubeconfig       = true
   kubeconfig_output_path = pathexpand("~/.kube/consul-k8s-${random_id.suffix[count.index].dec}")
+#  iam_role_additional_policies = [aws_iam_policy.efs_policy.arn]
 
   tags = var.tags
+}
+
+resource "aws_iam_policy" "policy" {
+  name        = "test_policy"
+  path        = "/"
+  description = "My test policy"
+
+  # Terraform's "jsonencode" function converts a
+  # Terraform expression result to valid JSON syntax.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "elasticfilesystem:DescribeAccessPoints",
+          "elasticfilesystem:DescribeFileSystems",
+          "elasticfilesystem:DescribeMountTargets",
+          "ec2:DescribeAvailabilityZones"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      {
+        Action = [
+          "elasticfilesystem:CreateAccessPoint",
+          "elasticfilesystem:DeleteAccessPoint"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "aws:RequestTag/efs.csi.aws.com/cluster": "true"
+          }
+        }
+      },
+    ]
+  })
 }
 
 data "aws_eks_cluster" "cluster" {
@@ -142,7 +209,11 @@ resource "aws_vpc_peering_connection_accepter" "peer" {
 resource "aws_route" "peering0" {
   # We have 2 route tables to add a route to, the public and private route tables.
   count                     = var.cluster_count > 1 ? 2 : 0
-  route_table_id            = [module.vpc[0].public_route_table_ids[0], module.vpc[0].private_route_table_ids[0]][count.index]
+  route_table_id            = [
+    module.vpc[0].public_route_table_ids[0], module.vpc[0].private_route_table_ids[0]
+  ][
+  count.index
+  ]
   destination_cidr_block    = module.vpc[1].vpc_cidr_block
   vpc_peering_connection_id = aws_vpc_peering_connection.peer[0].id
 }
@@ -151,7 +222,15 @@ resource "aws_route" "peering0" {
 resource "aws_route" "peering1" {
   # We have 2 route tables to add a route to, the public and private route tables.
   count                     = var.cluster_count > 1 ? 2 : 0
-  route_table_id            = [module.vpc[1].public_route_table_ids[0], module.vpc[1].private_route_table_ids[0]][count.index]
+  route_table_id            = [
+    module.vpc[1].public_route_table_ids[0], module.vpc[1].private_route_table_ids[0]
+  ][
+  count.index
+  ]
   destination_cidr_block    = module.vpc[0].vpc_cidr_block
   vpc_peering_connection_id = aws_vpc_peering_connection.peer[0].id
+}
+
+resource "aws_efs_file_system" "this" {
+  creation_token = "consul-k8s"
 }

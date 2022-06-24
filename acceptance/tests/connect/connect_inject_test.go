@@ -30,20 +30,20 @@ func TestConnectInject(t *testing.T) {
 			clusterKind: consul.Helm,
 			releaseName: helpers.RandomName(),
 		},
-		"Helm install with secure": {
-			clusterKind: consul.Helm,
-			releaseName: helpers.RandomName(),
-			secure:      true,
-		},
-		"CLI install without secure": {
-			clusterKind: consul.CLI,
-			releaseName: consul.CLIReleaseName,
-		},
-		"CLI install with secure": {
-			clusterKind: consul.CLI,
-			releaseName: consul.CLIReleaseName,
-			secure:      true,
-		},
+		//"Helm install with secure": {
+		//	clusterKind: consul.Helm,
+		//	releaseName: helpers.RandomName(),
+		//	secure:      true,
+		//},
+		//"CLI install without secure": {
+		//	clusterKind: consul.CLI,
+		//	releaseName: consul.CLIReleaseName,
+		//},
+		//"CLI install with secure": {
+		//	clusterKind: consul.CLI,
+		//	releaseName: consul.CLIReleaseName,
+		//	secure:      true,
+		//},
 	}
 
 	for name, c := range cases {
