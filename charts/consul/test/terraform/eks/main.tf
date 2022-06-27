@@ -1,10 +1,17 @@
-provider "aws" {
-  version = ">= 2.28.1"
-  region  = var.region
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 4.20.1"
+    }
+  }
+}
 
+provider "aws" {
+  region = var.region
   assume_role {
-    role_arn         = var.role_arn
-    duration_seconds = 2700
+    role_arn = var.role_arn
+    duration = "2700s"
   }
 }
 
@@ -25,16 +32,16 @@ resource "random_string" "suffix" {
 module "vpc" {
   count   = var.cluster_count
   source  = "terraform-aws-modules/vpc/aws"
-  version = "3.11.0"
+  version = "3.14.2"
 
-  name                 = "consul-k8s-${random_id.suffix[count.index].dec}"
+  name            = "consul-k8s-${random_id.suffix[count.index].dec}"
   # The cidr range needs to be unique in each VPC to allow setting up a peering connection.
-  cidr                 = format("10.%s.0.0/16", count.index)
-  azs                  = data.aws_availability_zones.available.names
-  private_subnets      = [
+  cidr            = format("10.%s.0.0/16", count.index)
+  azs             = data.aws_availability_zones.available.names
+  private_subnets = [
     format("10.%s.1.0/24", count.index), format("10.%s.2.0/24", count.index), format("10.%s.3.0/24", count.index)
   ]
-  public_subnets       = [
+  public_subnets = [
     format("10.%s.4.0/24", count.index), format("10.%s.5.0/24", count.index), format("10.%s.6.0/24", count.index)
   ]
   enable_nat_gateway   = true
@@ -58,21 +65,21 @@ module "eks" {
   count = var.cluster_count
 
   source  = "terraform-aws-modules/eks/aws"
-  version = "17.20.0"
+  version = "18.24.1"
 
   cluster_name    = "consul-k8s-${random_id.suffix[count.index].dec}"
   cluster_version = "1.19"
-  subnets         = module.vpc[count.index].private_subnets
+  subnet_ids      = module.vpc[count.index].private_subnets
 
   vpc_id = module.vpc[count.index].vpc_id
 
-  node_groups = {
+  eks_managed_node_groups = {
     first = {
       // When we're running on Fargate, we still need nodes to run coreDNS, however,
-      // 1 node should be sufficient.
-      desired_capacity = var.fargate ? 1 : 3
-      max_capacity     = var.fargate ? 1 : 3
-      min_capacity     = var.fargate ? 1 : 3
+      // 2 node should be sufficient.
+      desired_capacity = var.fargate ? 2 : 3
+      max_capacity     = var.fargate ? 2 : 3
+      min_capacity     = var.fargate ? 2 : 3
 
       instance_type = "m5.large"
     }
@@ -101,23 +108,19 @@ module "eks" {
     }
   } : {}
 
-  manage_aws_auth        = false
-  write_kubeconfig       = true
-  kubeconfig_output_path = pathexpand("~/.kube/consul-k8s-${random_id.suffix[count.index].dec}")
-#  iam_role_additional_policies = [aws_iam_policy.efs_policy.arn]
-
   tags = var.tags
 }
 
-resource "aws_iam_policy" "policy" {
-  name        = "test_policy"
+// todo: need to make this work for multi-cluster
+resource "aws_iam_policy" "efs_policy" {
+  name        = "efs_policy"
   path        = "/"
-  description = "My test policy"
+  description = "EFS policy"
 
   # Terraform's "jsonencode" function converts a
   # Terraform expression result to valid JSON syntax.
   policy = jsonencode({
-    Version = "2012-10-17"
+    Version   = "2012-10-17"
     Statement = [
       {
         Action = [
@@ -132,13 +135,24 @@ resource "aws_iam_policy" "policy" {
       {
         Action = [
           "elasticfilesystem:CreateAccessPoint",
-          "elasticfilesystem:DeleteAccessPoint"
         ]
-        Effect   = "Allow"
-        Resource = "*"
+        Effect    = "Allow"
+        Resource  = "*"
         Condition = {
           StringLike = {
-            "aws:RequestTag/efs.csi.aws.com/cluster": "true"
+            "aws:RequestTag/efs.csi.aws.com/cluster" : "true"
+          }
+        }
+      },
+      {
+        Action = [
+          "elasticfilesystem:DeleteAccessPoint"
+        ]
+        Effect    = "Allow"
+        Resource  = "*"
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/efs.csi.aws.com/cluster" : "true"
           }
         }
       },
@@ -146,14 +160,10 @@ resource "aws_iam_policy" "policy" {
   })
 }
 
-data "aws_eks_cluster" "cluster" {
-  count = var.cluster_count
-  name  = module.eks[count.index].cluster_id
-}
-
-data "aws_eks_cluster_auth" "cluster" {
-  count = var.cluster_count
-  name  = module.eks[count.index].cluster_id
+resource "aws_iam_role_policy_attachment" "additional" {
+  count      = var.cluster_count
+  policy_arn = aws_iam_policy.efs_policy.arn
+  role       = module.eks[count.index].eks_managed_node_groups["first"].iam_role_name
 }
 
 # The following resources are only applied when cluster_count=2 to set up vpc peering and the appropriate routes and
@@ -208,8 +218,8 @@ resource "aws_vpc_peering_connection_accepter" "peer" {
 # Add routes that so traffic going from VPC 0 to VPC 1 is routed through the peering connection.
 resource "aws_route" "peering0" {
   # We have 2 route tables to add a route to, the public and private route tables.
-  count                     = var.cluster_count > 1 ? 2 : 0
-  route_table_id            = [
+  count          = var.cluster_count > 1 ? 2 : 0
+  route_table_id = [
     module.vpc[0].public_route_table_ids[0], module.vpc[0].private_route_table_ids[0]
   ][
   count.index
@@ -221,8 +231,8 @@ resource "aws_route" "peering0" {
 # Add routes that so traffic going from VPC 1 to VPC 0 is routed through the peering connection.
 resource "aws_route" "peering1" {
   # We have 2 route tables to add a route to, the public and private route tables.
-  count                     = var.cluster_count > 1 ? 2 : 0
-  route_table_id            = [
+  count          = var.cluster_count > 1 ? 2 : 0
+  route_table_id = [
     module.vpc[1].public_route_table_ids[0], module.vpc[1].private_route_table_ids[0]
   ][
   count.index
@@ -231,6 +241,56 @@ resource "aws_route" "peering1" {
   vpc_peering_connection_id = aws_vpc_peering_connection.peer[0].id
 }
 
+resource "aws_security_group" "efs" {
+  count       = var.cluster_count
+  name        = "allow_traffic_to_efs"
+  description = "Allow inbound traffic to EFS on port 2049"
+  vpc_id      = module.vpc[count.index].vpc_id
+
+  ingress {
+    description = "Inbound on port 2049"
+    from_port   = 2049
+    to_port     = 2049
+    protocol    = "tcp"
+    cidr_blocks = [module.vpc[count.index].vpc_cidr_block]
+  }
+
+  tags = var.tags
+}
+
 resource "aws_efs_file_system" "this" {
+  count          = var.fargate ? 1 : 0
   creation_token = "consul-k8s"
+}
+
+// todo: need to make it work with two clusters/two VPCs
+resource "aws_efs_mount_target" "alpha" {
+  count           = var.fargate ? length(module.vpc[0].private_subnets) : 0
+  file_system_id  = aws_efs_file_system.this[0].id
+  subnet_id       = module.vpc[0].private_subnets[count.index]
+  security_groups = [aws_security_group.efs[0].id]
+}
+
+resource "null_resource" "kubectl" {
+  count = var.cluster_count
+
+  triggers = {
+    cluster = module.eks[count.index].cluster_id
+  }
+
+  # On creation, we want to setup the kubectl credentials. The easiest way
+  # to do this is to shell out to gcloud.
+  provisioner "local-exec" {
+    command = "KUBECONFIG=$HOME/.kube/${module.eks[count.index].cluster_id} aws eks update-kubeconfig --region ${var.region} --name=${module.eks[count.index].cluster_id}"
+  }
+
+  # On destroy we want to try to clean up the kubectl credentials. This
+  # might fail if the credentials are already cleaned up or something so we
+  # want this to continue on failure. Generally, this works just fine since
+  # it only operates on local data.
+  provisioner "local-exec" {
+    when       = destroy
+    on_failure = continue
+    command    = "rm $HOME/.kube/consul-k8s*"
+  }
 }
