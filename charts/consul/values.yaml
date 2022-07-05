@@ -94,7 +94,7 @@ global:
   # image: "hashicorp/consul-enterprise:1.10.0-ent"
   # ```
   # @default: hashicorp/consul:<latest version>
-  image: "hashicorp/consul:1.12.2"
+  image: "hashicorp/consul:1.13.0-alpha2"
 
   # Array of objects containing image pull secret names that will be applied to each service account.
   # This can be used to reference image pull secrets if using a custom consul or consul-k8s-control-plane Docker image.
@@ -114,7 +114,7 @@ global:
   # image that is used for functionality such as catalog sync.
   # This can be overridden per component.
   # @default: hashicorp/consul-k8s-control-plane:<latest version>
-  imageK8S: "hashicorp/consul-k8s-control-plane:0.45.0"
+  imageK8S: "hashicorpdev/consul-k8s-control-plane:783d0a50"
 
   # The name of the datacenter that the agents should
   # register as. This can't be changed once the Consul cluster is up and running
@@ -1815,7 +1815,7 @@ syncCatalog:
 connectInject:
   # True if you want to enable connect injection. Set to "-" to inherit from
   # global.enabled.
-  enabled: false
+  enabled: true
 
   # The number of deployment replicas.
   replicas: 2
@@ -1837,7 +1837,7 @@ connectInject:
     # If true, then all Consul Service mesh will run with transparent proxy enabled by default,
     # i.e. we enforce that all traffic within the pod will go through the proxy.
     # This value is overridable via the "consul.hashicorp.com/transparent-proxy" pod annotation.
-    defaultEnabled: true
+    defaultEnabled: false
 
     # If true, we will overwrite Kubernetes HTTP probes of the pod to point to the Envoy proxy instead.
     # This setting is recommended because with traffic being enforced to go through the Envoy proxy,
