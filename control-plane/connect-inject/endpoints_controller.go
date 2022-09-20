@@ -219,7 +219,7 @@ func (r *EndpointsController) Reconcile(ctx context.Context, req ctrl.Request) (
 				}
 				if isGateway(pod) {
 					endpointPods.Add(address.TargetRef.Name)
-					if err = r.registerGateway(pod, serviceEndpoints, healthStatus, endpointAddressMap); err != nil {
+					if err = r.registerGateway(apiClient, pod, serviceEndpoints, healthStatus, endpointAddressMap); err != nil {
 						r.Log.Error(err, "failed to register gateway or health check", "name", serviceEndpoints.Name, "ns", serviceEndpoints.Namespace)
 						errs = multierror.Append(errs, err)
 					}
@@ -290,7 +290,7 @@ func (r *EndpointsController) registerServicesAndHealthCheck(apiClient *api.Clie
 
 // registerGateway creates Consul registrations for the Connect Gateways and registers them with Consul.
 // It also upserts a Kubernetes health check for the service based on whether the endpoint address is ready.
-func (r *EndpointsController) registerGateway(pod corev1.Pod, serviceEndpoints corev1.Endpoints, healthStatus string, endpointAddressMap map[string]bool) error {
+func (r *EndpointsController) registerGateway(apiClient *api.Client, pod corev1.Pod, serviceEndpoints corev1.Endpoints, healthStatus string, endpointAddressMap map[string]bool) error {
 	// Build the endpointAddressMap up for deregistering service instances later.
 	endpointAddressMap[pod.Status.PodIP] = true
 
@@ -310,7 +310,7 @@ func (r *EndpointsController) registerGateway(pod corev1.Pod, serviceEndpoints c
 		// Register the service instance with Consul.
 		r.Log.Info("registering gateway with Consul", "name", serviceRegistration.Service.Service,
 			"id", serviceRegistration.ID)
-		_, err = r.ConsulClient.Catalog().Register(serviceRegistration, nil)
+		_, err = apiClient.Catalog().Register(serviceRegistration, nil)
 		if err != nil {
 			r.Log.Error(err, "failed to register gateway", "name", serviceRegistration.Service.Service)
 			return err

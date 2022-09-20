@@ -341,6 +341,20 @@ func TestConsulFlags_ConsulAPIClientConfig(t *testing.T) {
 				},
 			},
 		},
+		"TLS CA PEM provided": {
+			flags: ConsulFlags{
+				ConsulTLSFlags: ConsulTLSFlags{
+					UseTLS:    true,
+					CACertPEM: testCA,
+				},
+			},
+			expConfig: &api.Config{
+				Scheme: "https",
+				TLSConfig: api.TLSConfig{
+					CAPem: []byte(testCA),
+				},
+			},
+		},
 		"ACL token provided": {
 			flags: ConsulFlags{
 				ConsulACLFlags: ConsulACLFlags{
@@ -356,7 +370,7 @@ func TestConsulFlags_ConsulAPIClientConfig(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			require.Equal(t, c.expConfig, c.flags.ConsulAPIClientConfig())
+			require.Equal(t, c.expConfig, c.flags.ConsulClientConfig().APIClientConfig)
 		})
 	}
 }
