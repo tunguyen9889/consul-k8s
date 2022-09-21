@@ -730,7 +730,7 @@ load _helpers
   [ "${actual}" = "true" ]
 
   actual=$(echo $config | jq -c .ports | tee /dev/stderr)
-  [ "${actual}" = '{"http":-1,"https":8501}' ]
+  [ "${actual}" = '{"http":-1,"https":8501,"grpc":8503}' ]
 }
 
 @test "server/ConfigMap: doesn't set verify_* configuration to true when global.tls.enabled and global.tls.verify is false" {
