@@ -1244,17 +1244,17 @@ workflows:
       - dev-upload-docker:
           requires:
             - build-distros-linux
-      - cleanup-gcp-resources
-      - cleanup-azure-resources
+      # - cleanup-gcp-resources
+      # - cleanup-azure-resources
       - cleanup-eks-resources
       # Disable until we can use UBI images.
       # - acceptance-openshift:
       #    requires:
       #      - cleanup-azure-resources
-      - acceptance-gke-1-23:
-          requires:
-            - cleanup-gcp-resources
-            - dev-upload-docker
+      #      - acceptance-gke-1-23:
+      #    requires:
+      #      - cleanup-gcp-resources
+      #      - dev-upload-docker
 # TODO (agentless): re-enable once tproxy is supported
 #      - acceptance-gke-cni-1-23:
 #          requires:
@@ -1267,10 +1267,10 @@ workflows:
 #      - acceptance-eks-cni-1-21:
 #          requires:
 #            - acceptance-eks-1-21
-      - acceptance-aks-1-22:
-          requires:
-            - cleanup-azure-resources
-            - dev-upload-docker
+#      - acceptance-aks-1-22:
+#          requires:
+#            - cleanup-azure-resources
+#            - dev-upload-docker
 # TODO (agentless): re-enable once tproxy is supported
 #      - acceptance-aks-cni-1-22:
 #          requires:
