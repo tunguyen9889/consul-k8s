@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul-k8s/acceptance/framework/config"
 	"github.com/hashicorp/consul-k8s/acceptance/framework/consul"
 	"github.com/hashicorp/consul-k8s/acceptance/framework/helpers"
 	"github.com/hashicorp/consul-k8s/acceptance/framework/k8s"
@@ -33,6 +34,11 @@ const (
 // and non-auto-encrypt secure installations, so testing just one is enough.
 func TestControllerNamespaces(t *testing.T) {
 	cfg := suite.Config()
+
+	if cfg.HelmChartVersion != config.HelmChartPath {
+		t.Skipf("skipping this test for previous versions because the CRD fixture for this test uses configuration only found in helm versions greater than 0.48.0")
+	}
+
 	if cfg.EnableCNI {
 		t.Skipf("skipping because -enable-cni is set and controller is already tested with regular tproxy")
 	}
