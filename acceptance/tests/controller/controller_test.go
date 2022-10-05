@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,15 +80,32 @@ func TestController(t *testing.T) {
 			{
 				logger.Log(t, "creating custom resources")
 				retry.Run(t, func(r *retry.R) {
+					ossCRDFixtures := "../fixtures/bases/crds-oss"
+					if cfg.HelmChartVersion != config.HelmChartPath {
+						semVerSplit := strings.Split(cfg.HelmChartVersion, ".")
+						trimLeftChar := func(s string) string {
+							for i := range s {
+								if i > 0 {
+									return s[i:]
+								}
+							}
+							return s[:0]
+						}
+						majorVersion := trimLeftChar(semVerSplit[0])
+						minorVersion := semVerSplit[1]
+						if majorVersion == "0" && minorVersion < "49" {
+							ossCRDFixtures = "../fixtures/bases/crds-oss-pre-1.14"
+						}
+					}
 					// Retry the kubectl apply because we've seen sporadic
 					// "connection refused" errors where the mutating webhook
 					// endpoint fails initially.
-					out, err := k8s.RunKubectlAndGetOutputE(t, ctx.KubectlOptions(t), "apply", "-k", "../fixtures/bases/crds-oss")
+					out, err := k8s.RunKubectlAndGetOutputE(t, ctx.KubectlOptions(t), "apply", "-k", ossCRDFixtures)
 					require.NoError(r, err, out)
 					helpers.Cleanup(t, cfg.NoCleanupOnFailure, func() {
 						// Ignore errors here because if the test ran as expected
 						// the custom resources will have been deleted.
-						k8s.RunKubectlAndGetOutputE(t, ctx.KubectlOptions(t), "delete", "-k", "../fixtures/bases/crds-oss")
+						k8s.RunKubectlAndGetOutputE(t, ctx.KubectlOptions(t), "delete", "-k", ossCRDFixtures)
 					})
 				})
 
