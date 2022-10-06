@@ -118,6 +118,7 @@ func (c *Command) Run(args []string) int {
 	}
 
 	consulClient, err := consul.NewClientFromConnMgrState(c.consul.ConsulClientConfig(), state)
+	c.log.Info("skip verify for 'partition-init'")
 	if err != nil {
 		c.UI.Error(fmt.Sprintf("unable to create Consul client: %s", err))
 		return 1

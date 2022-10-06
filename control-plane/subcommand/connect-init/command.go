@@ -109,6 +109,7 @@ func (c *Command) Run(args []string) int {
 
 	// Create Consul API config object.
 	consulConfig := c.consul.ConsulClientConfig()
+	c.logger.Info("skip verify for 'connect-init'")
 
 	// Create a context to be used by the processes started in this command.
 	ctx, cancelFunc := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

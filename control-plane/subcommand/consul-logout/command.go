@@ -76,6 +76,7 @@ func (c *Command) Run(args []string) int {
 	cfg := api.DefaultConfig()
 	c.http.MergeOntoConfig(cfg)
 	consulClient, err := consul.NewClient(cfg, c.http.ConsulAPITimeout())
+	c.logger.Info("skip verify for 'consul-logout'")
 	if err != nil {
 		c.logger.Error("Unable to get client connection", "error", err)
 		return 1

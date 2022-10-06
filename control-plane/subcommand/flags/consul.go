@@ -178,7 +178,9 @@ func (f *ConsulFlags) ConsulServerConnMgrConfig() (discovery.Config, error) {
 	}
 
 	if f.UseTLS {
-		tlsConfig := &tls.Config{}
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: true,
+		}
 		if f.CACertFile != "" {
 			err := rootcerts.ConfigureTLS(tlsConfig, &rootcerts.Config{
 				CAFile: f.CACertFile,
@@ -248,6 +250,8 @@ func (f *ConsulFlags) ConsulClientConfig() *consul.Config {
 		} else if f.TLSServerName != "" {
 			cfg.TLSConfig.Address = f.TLSServerName
 		}
+
+		cfg.TLSConfig.InsecureSkipVerify = true
 	}
 
 	if f.Token != "" {

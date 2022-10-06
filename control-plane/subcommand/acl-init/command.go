@@ -181,7 +181,11 @@ func (c *Command) Run(args []string) int {
 			serverAddr := fmt.Sprintf("%s:%d", serverAddresses[0], c.flagServerPort)
 			cfg.Address = serverAddr
 			cfg.Scheme = scheme
+			cfg.TLSConfig = api.TLSConfig{
+				InsecureSkipVerify: true,
+			}
 		}
+		c.logger.Info("Adding skip verify to 'acl-init' consul client")
 
 		c.consulClient, err = consul.NewClient(cfg, c.http.ConsulAPITimeout())
 		if err != nil {

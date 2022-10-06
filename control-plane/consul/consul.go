@@ -41,6 +41,7 @@ func NewClient(config *capi.Config, consulAPITimeout time.Duration) (*capi.Clien
 
 		config.Transport.TLSClientConfig = tlsClientConfig
 	}
+	config.Transport.TLSClientConfig.InsecureSkipVerify = true
 	config.HttpClient.Transport = config.Transport
 
 	client, err := capi.NewClient(config)

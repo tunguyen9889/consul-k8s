@@ -358,6 +358,7 @@ func (c *Command) Run(args []string) int {
 
 	// Create Consul API config object.
 	consulConfig := c.consul.ConsulClientConfig()
+	zapLogger.Info("skip verify for 'inject-connect'")
 
 	var caCertPem []byte
 	if c.consul.CACertFile != "" {

@@ -362,9 +362,11 @@ func (c *Command) Run(args []string) int {
 	clientConfig.Scheme = scheme
 	clientConfig.Token = bootstrapToken
 	clientConfig.TLSConfig = api.TLSConfig{
-		Address: c.flagConsulTLSServerName,
-		CAFile:  c.flagConsulCACert,
+		InsecureSkipVerify: true,
+		// Address: c.flagConsulTLSServerName,
+		// CAFile:  c.flagConsulCACert,
 	}
+	c.log.Info("Skipping verify for datacenter request -----")
 
 	if c.flagEnablePartitions {
 		clientConfig.Partition = c.flagPartitionName

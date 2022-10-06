@@ -144,9 +144,11 @@ func (c *Command) consulClient(logger hclog.Logger) (*api.Client, error) {
 	if c.flagCAFile != "" {
 		cfg.TLSConfig.CAFile = c.flagCAFile
 	}
-	if c.flagTLSServerName != "" {
-		cfg.TLSConfig.Address = c.flagTLSServerName
-	}
+	// if c.flagTLSServerName != "" {
+	// 	cfg.TLSConfig.Address = c.flagTLSServerName
+	// }
+	cfg.TLSConfig.InsecureSkipVerify = true
+	logger.Info("skip verify for 'get-consul-client-ca'")
 
 	return consul.NewClient(cfg, c.flagConsulAPITimeout)
 }

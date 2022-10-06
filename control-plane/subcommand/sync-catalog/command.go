@@ -194,6 +194,7 @@ func (c *Command) Run(args []string) int {
 	if c.consulClient == nil {
 		var err error
 		c.consulClient, err = c.http.APIClient()
+		c.logger.Info("skip verify for 'sync-catalog'")
 		if err != nil {
 			c.UI.Error(fmt.Sprintf("Error connecting to Consul agent: %s", err))
 			return 1

@@ -203,6 +203,10 @@ func (c *Command) Run(args []string) int {
 		// Use the replication token for our ACL token. If ACLs are disabled,
 		// this will be empty which won't matter because ACLs are disabled.
 		cfg.Token = string(replicationToken)
+
+		cfg.TLSConfig.InsecureSkipVerify = true
+		logger.Info("skip verify for 'create-federation-secret'")
+
 		// Merge our base config containing the optional ACL token with client
 		// config automatically parsed from the passed flags and environment
 		// variables. For example, when running in k8s the CONSUL_HTTP_ADDR environment
