@@ -130,7 +130,7 @@ type MeshWebhook struct {
 	DefaultProxyMemoryLimit   resource.Quantity
 
 	// Default Envoy concurrency flag, this is the number of worker threads to be used by the proxy.
-	DefaultEnvoyProxyConcurrency int
+	DefaultEnvoyProxyConcurrency int64
 
 	// MetricsConfig contains metrics configuration from the inject-connect command and has methods to determine whether
 	// configuration should come from the default flags or annotations. The meshWebhook uses this to configure prometheus

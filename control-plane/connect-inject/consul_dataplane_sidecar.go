@@ -133,11 +133,11 @@ func (w *MeshWebhook) getContainerSidecarCommand(namespace corev1.Namespace, mpi
 
 	// Check to see if the user has overriden concurrency via an annotation.
 	if envoyConcurrencyAnnotation, ok := pod.Annotations[annotationEnvoyProxyConcurrency]; ok {
-		val, err := strconv.ParseInt(envoyConcurrencyAnnotation, 10, 64)
+		val, err := strconv.ParseUint(envoyConcurrencyAnnotation, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse annotation %q: %w", annotationEnvoyProxyConcurrency, err)
 		}
-		envoyConcurrency = int(val)
+		envoyConcurrency = int64(val)
 	}
 
 	cmd := []string{
@@ -148,7 +148,7 @@ func (w *MeshWebhook) getContainerSidecarCommand(namespace corev1.Namespace, mpi
 		"-service-node-name=" + ConsulNodeName,
 		"-log-level=" + w.LogLevel,
 		"-log-json=" + strconv.FormatBool(w.LogJSON),
-		"-envoy-concurrency=" + strconv.Itoa(envoyConcurrency),
+		"-envoy-concurrency=" + strconv.FormatInt(envoyConcurrency, 10),
 	}
 
 	if w.AuthMethod != "" {
