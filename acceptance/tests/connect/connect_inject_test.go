@@ -248,7 +248,6 @@ func TestConnectInject_MultiportServices(t *testing.T) {
 			cfg := suite.Config()
 			ctx := suite.Environment().DefaultContext(t)
 
-			cfg.EnableTransparentProxy = false
 			// Multi port apps don't work with transparent proxy.
 			if cfg.EnableTransparentProxy {
 				t.Skipf("skipping this test because transparent proxy is enabled")
@@ -257,7 +256,6 @@ func TestConnectInject_MultiportServices(t *testing.T) {
 			helmValues := map[string]string{
 				"connectInject.enabled": "true",
 
-				"global.image":                 "docker.mirror.hashicorp.services/hashicorppreview/consul:1.14-dev",
 				"global.tls.enabled":           strconv.FormatBool(secure),
 				"global.acls.manageSystemACLs": strconv.FormatBool(secure),
 			}
