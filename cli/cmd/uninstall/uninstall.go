@@ -37,8 +37,7 @@ const (
 	flagWipeData    = "wipe-data"
 	defaultWipeData = false
 
-	flagTimeout    = "timeout"
-	defaultTimeout = "10m"
+	flagTimeout = "timeout"
 
 	flagContext    = "context"
 	flagKubeconfig = "kubeconfig"
@@ -56,13 +55,14 @@ type Command struct {
 
 	set *flag.Sets
 
+	// Command flags
 	flagNamespace   string
 	flagReleaseName string
 	flagAutoApprove bool
 	flagWipeData    bool
-	flagTimeout     string
-	timeoutDuration time.Duration
+	flagTimeout     time.Duration
 
+	// Global flags
 	flagKubeConfig  string
 	flagKubeContext string
 
@@ -97,10 +97,10 @@ func (c *Command) init() {
 		Default: defaultAnyReleaseName,
 		Usage:   "Name of the installation. This can be used to uninstall and/or delete the resources of a specific Helm release.",
 	})
-	f.StringVar(&flag.StringVar{
+	f.DurationVar(&flag.DurationVar{
 		Name:    flagTimeout,
 		Target:  &c.flagTimeout,
-		Default: defaultTimeout,
+		Default: 10 * time.Minute,
 		Usage:   "Timeout to wait for uninstall.",
 	})
 
@@ -140,20 +140,12 @@ func (c *Command) Run(args []string) int {
 	}
 
 	if err := c.set.Parse(args); err != nil {
-		c.UI.Output(err.Error(), terminal.WithErrorStyle())
+		c.UI.Output("Unable to parse flags: %v.\n", err.Error(), terminal.WithErrorStyle())
+		c.UI.Output(c.Help())
 		return 1
 	}
-	if len(c.set.Args()) > 0 {
-		c.UI.Output("Should have no non-flag arguments.", terminal.WithErrorStyle())
-		return 1
-	}
-	if c.flagWipeData && !c.flagAutoApprove {
-		c.UI.Output("Can't set -wipe-data alone. Omit this flag to interactively uninstall, or use it with -auto-approve to wipe all data during the uninstall.", terminal.WithErrorStyle())
-		return 1
-	}
-	duration, err := time.ParseDuration(c.flagTimeout)
-	if err != nil {
-		c.UI.Output("unable to parse -%s: %s", flagTimeout, err, terminal.WithErrorStyle())
+	if err := c.validateFlags(); err != nil {
+		c.UI.Output("Unable to validate flags: %v.", err.Error(), terminal.WithErrorStyle())
 		return 1
 	}
 	c.timeoutDuration = duration
@@ -346,7 +338,7 @@ func (c *Command) uninstallHelmRelease(releaseName, namespace, releaseType strin
 	}
 
 	uninstall := action.NewUninstall(actionConfig)
-	uninstall.Timeout = c.timeoutDuration
+	uninstall.Timeout = c.flagTimeout
 
 	res, err := c.helmActionsRunner.Uninstall(uninstall, releaseName)
 	if err != nil {
