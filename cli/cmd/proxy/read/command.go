@@ -267,7 +267,9 @@ func (c *ReadCommand) validateFlags() error {
 	return nil
 }
 
-func (c *ReadCommand) initKubernetes() (err error) {
+func (c *ReadCommand) initKubernetes() error {
+	var err error
+
 	settings := helmCLI.New()
 
 	if c.flagKubeConfig != "" {
