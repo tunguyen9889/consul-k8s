@@ -358,32 +358,6 @@ func TestDeleteClusterRoleBindings(t *testing.T) {
 	require.Equal(t, clusterrolebindings.Items[0].Name, clusterrolebinding3.Name)
 }
 
-// getInitializedCommand sets up a command struct for tests.
-func getInitializedCommand(t *testing.T, buf io.Writer) *Command {
-	t.Helper()
-	log := hclog.New(&hclog.LoggerOptions{
-		Name:   "cli",
-		Level:  hclog.Info,
-		Output: os.Stdout,
-	})
-	var ui terminal.UI
-	if buf != nil {
-		ui = terminal.NewUI(context.Background(), buf)
-	} else {
-		ui = terminal.NewBasicUI(context.Background())
-	}
-	baseCommand := &common.BaseCommand{
-		Log: log,
-		UI:  ui,
-	}
-
-	c := &Command{
-		BaseCommand: baseCommand,
-	}
-	c.init()
-	return c
-}
-
 func TestTaskCreateCommand_AutocompleteFlags(t *testing.T) {
 	t.Parallel()
 	cmd := getInitializedCommand(t, nil)
@@ -469,7 +443,7 @@ func TestUninstall(t *testing.T) {
 			expectConsulUninstalled:                 false,
 			expectConsulDemoUninstalled:             false,
 		},
-		"uninstall with -wipe-data flag processes other rescource and returns success": {
+		"uninstall with -wipe-data flag processes other resource and returns success": {
 			input: []string{
 				"-wipe-data",
 			},
@@ -597,4 +571,30 @@ func TestUninstall(t *testing.T) {
 			}
 		})
 	}
+}
+
+// getInitializedCommand sets up a command struct for tests.
+func getInitializedCommand(t *testing.T, buf io.Writer) *Command {
+	t.Helper()
+	log := hclog.New(&hclog.LoggerOptions{
+		Name:   "cli",
+		Level:  hclog.Info,
+		Output: os.Stdout,
+	})
+	var ui terminal.UI
+	if buf != nil {
+		ui = terminal.NewUI(context.Background(), buf)
+	} else {
+		ui = terminal.NewBasicUI(context.Background())
+	}
+	baseCommand := &common.BaseCommand{
+		Log: log,
+		UI:  ui,
+	}
+
+	c := &Command{
+		BaseCommand: baseCommand,
+	}
+	c.init()
+	return c
 }
