@@ -399,6 +399,57 @@ func (c *Command) promptDeletion(releaseType, releaseName, releaseNamespace stri
 	return true, nil
 }
 
+// crds is used to deserialize JSON returned from the `/apis/apiextensions.k8s.io/v1/customresourcedefinitions` endpoint.
+type crds struct {
+	Items []struct {
+		Metadata struct {
+			Name string `json:"name"`
+		} `json:"metadata"`
+		Spec struct {
+			Group string `json:"group"`
+			Names struct {
+				Kind string `json:"kind"`
+			} `json:"names"`
+			Versions []struct {
+				Name string `json:"name"`
+			} `json:"versions"`
+		} `json:"spec"`
+	} `json:"items"`
+}
+
+// deleteCustomResources gets a list of all custom resource definitions defined
+// by Consul. It then iterates over all custom resources matching these
+// definitions and deletes them.
+func (c *Command) deleteCustomResources() error {
+	raw, err := c.kubernetes.CoreV1().RESTClient().Get().AbsPath("/apis/apiextensions.k8s.io/v1/customresourcedefinitions").DoRaw(c.Ctx)
+	if err != nil {
+		return err
+	}
+	var crds crds
+	if err := json.Unmarshal(raw, &crds); err != nil {
+		return err
+	}
+
+	for _, crd := range crds.Items {
+		if crd.Spec.Group == "consul.hashicorp.com" {
+			for _, version := range crd.Spec.Versions {
+				u := &unstructured.Unstructured{}
+				u.SetGroupVersionKind(schema.GroupVersionKind{
+					Group:   "consul.hashicorp.com",
+					Kind:    crd.Spec.Names.Kind,
+					Version: version.Name,
+				})
+				err = c.client.DeleteAllOf(c.Ctx, u, client.InNamespace("default"))
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // uninstallHelmRelease uses Helm to uninstall a given release and prints out
 // progress using the uiLogger that is passed in.
 func (c *Command) uninstallHelmRelease(releaseName, namespace, releaseType string, settings *helmCLI.EnvSettings, uiLogger action.DebugLog, actionConfig *action.Configuration) error {
