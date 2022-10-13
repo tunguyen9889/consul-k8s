@@ -1,8 +1,8 @@
 package uninstall
 
 import (
+	"encoding/json"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -17,7 +17,11 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	helmCLI "helm.sh/helm/v3/pkg/cli"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -45,7 +49,10 @@ type Command struct {
 
 	helmActionsRunner helm.HelmActionsRunner
 
+	// Configuration for interacting with Kubernetes.
+	restConfig *rest.Config
 	kubernetes kubernetes.Interface
+	client     client.Client
 
 	set *flag.Sets
 
@@ -153,27 +160,9 @@ func (c *Command) Run(args []string) int {
 
 	// helmCLI.New() will create a settings object which is used by the Helm Go SDK calls.
 	settings := helmCLI.New()
-	if c.flagKubeConfig != "" {
-		settings.KubeConfig = c.flagKubeConfig
-	}
-	if c.flagKubeContext != "" {
-		settings.KubeContext = c.flagKubeContext
-	}
-
-	// Set up the kubernetes client to use for non Helm SDK calls to the Kubernetes API
-	// The Helm SDK will use settings.RESTClientGetter for its calls as well, so this will
-	// use a consistent method to target the right cluster for both Helm SDK and non Helm SDK calls.
-	if c.kubernetes == nil {
-		restConfig, err := settings.RESTClientGetter().ToRESTConfig()
-		if err != nil {
-			c.UI.Output("retrieving Kubernetes auth: %v", err, terminal.WithErrorStyle())
-			return 1
-		}
-		c.kubernetes, err = kubernetes.NewForConfig(restConfig)
-		if err != nil {
-			c.UI.Output("initializing Kubernetes client: %v", err, terminal.WithErrorStyle())
-			return 1
-		}
+	if err := c.initKubernetes(settings); err != nil {
+		c.UI.Output(err.Error(), terminal.WithErrorStyle())
+		return 1
 	}
 
 	// Setup logger to stream Helm library logs.
@@ -293,32 +282,38 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
-	if err := c.deleteRoles(foundReleaseName, foundReleaseNamespace); err != nil {
-		c.UI.Output(err.Error(), terminal.WithErrorStyle())
-		return 1
+// initKubernetes uses the settings as defined by the Helm CLI environment
+// to instantiate a Kubernetes rest config, interface client, and rest client.
+func (c *Command) initKubernetes(settings *helmCLI.EnvSettings) error {
+	var err error
+
+	if c.flagKubeConfig != "" {
+		settings.KubeConfig = c.flagKubeConfig
 	}
 
-	if err := c.deleteRoleBindings(foundReleaseName, foundReleaseNamespace); err != nil {
-		c.UI.Output(err.Error(), terminal.WithErrorStyle())
-		return 1
+	if c.flagKubeContext != "" {
+		settings.KubeContext = c.flagKubeContext
 	}
 
-	if err := c.deleteJobs(foundReleaseName, foundReleaseNamespace); err != nil {
-		c.UI.Output(err.Error(), terminal.WithErrorStyle())
-		return 1
+	if c.restConfig == nil {
+		if c.restConfig, err = settings.RESTClientGetter().ToRESTConfig(); err != nil {
+			return fmt.Errorf("error creating Kubernetes REST config %v", err)
+		}
 	}
 
-	if err := c.deleteClusterRoles(foundReleaseName); err != nil {
-		c.UI.Output(err.Error(), terminal.WithErrorStyle())
-		return 1
+	if c.kubernetes == nil {
+		if c.kubernetes, err = kubernetes.NewForConfig(c.restConfig); err != nil {
+			return fmt.Errorf("error creating Kubernetes client %v", err)
+		}
 	}
 
-	if err := c.deleteClusterRoleBindings(foundReleaseName); err != nil {
-		c.UI.Output(err.Error(), terminal.WithErrorStyle())
-		return 1
+	if c.client == nil {
+		if c.client, err = client.New(c.restConfig, client.Options{}); err != nil {
+			return fmt.Errorf("error creating Kubernetes client %v", err)
+		}
 	}
 
-	return 0
+	return nil
 }
 
 func (c *Command) uninstallHelmRelease(releaseName, namespace, releaseType string, settings *helmCLI.EnvSettings,
