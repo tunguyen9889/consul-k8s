@@ -281,6 +281,59 @@ Only approve if all data from this installation can be deleted. (y/N)`, foundRel
 		return 1
 	}
 
+	return 0
+}
+
+// Help is printed as instructions for using the uninstall command.
+func (c *Command) Help() string {
+	c.once.Do(c.init)
+
+	return fmt.Sprintf(`Usage: consul-k8s uninstall [flags]
+
+Uninstall Consul with options to delete data and resources associated with Consul installation.
+
+%s`, c.help)
+}
+
+// Synopsis is printed as a summary of the command.
+func (c *Command) Synopsis() string {
+	return "Uninstall Consul deployment."
+}
+
+// AutocompleteFlags returns a mapping of supported flags and autocomplete
+// options for this command. The map key for the Flags map should be the
+// complete flag such as "-foo" or "--foo".
+func (c *Command) AutocompleteFlags() complete.Flags {
+	return complete.Flags{
+		fmt.Sprintf("-%s", flagAutoApprove): complete.PredictNothing,
+		fmt.Sprintf("-%s", flagNamespace):   complete.PredictNothing,
+		fmt.Sprintf("-%s", flagReleaseName): complete.PredictNothing,
+		fmt.Sprintf("-%s", flagWipeData):    complete.PredictNothing,
+		fmt.Sprintf("-%s", flagTimeout):     complete.PredictNothing,
+		fmt.Sprintf("-%s", flagContext):     complete.PredictNothing,
+		fmt.Sprintf("-%s", flagKubeconfig):  complete.PredictFiles("*"),
+	}
+}
+
+// AutocompleteArgs returns the argument predictor for this command.
+// Since argument completion is not supported, this will return
+// complete.PredictNothing.
+func (c *Command) AutocompleteArgs() complete.Predictor {
+	return complete.PredictNothing
+}
+
+// validateFlags ensures that the flags passed in by the user are valid
+// arguments which may be used to perform the uninstall process.
+func (c *Command) validateFlags() error {
+	if len(c.set.Args()) > 0 {
+		return fmt.Errorf("should have no non-flag arguments")
+	}
+	if c.flagWipeData && !c.flagAutoApprove {
+		return fmt.Errorf("can't set -wipe-data alone. Omit this flag to interactively uninstall, or use it with -auto-approve to wipe all data during the uninstall")
+	}
+	return nil
+}
+
 // initKubernetes uses the settings as defined by the Helm CLI environment
 // to instantiate a Kubernetes rest config, interface client, and rest client.
 func (c *Command) initKubernetes(settings *helmCLI.EnvSettings) error {
