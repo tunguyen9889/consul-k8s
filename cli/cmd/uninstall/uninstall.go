@@ -124,16 +124,8 @@ func (c *Command) init() {
 
 func (c *Command) Run(args []string) int {
 	c.once.Do(c.init)
-
-	// The logger is initialized in main with the name cli. Here, we reset the name to uninstall so log lines would be prefixed with uninstall.
 	c.Log.ResetNamed("uninstall")
-
-	defer func() {
-		if err := c.Close(); err != nil {
-			c.Log.Error(err.Error())
-			os.Exit(1)
-		}
-	}()
+	defer common.CloseWithError(c.BaseCommand)
 
 	if c.helmActionsRunner == nil {
 		c.helmActionsRunner = &helm.ActionRunner{}
@@ -158,19 +150,21 @@ func (c *Command) Run(args []string) int {
 	}
 
 	// Setup logger to stream Helm library logs.
-	var uiLogger = func(s string, args ...interface{}) {
+	uiLogger := func(s string, args ...interface{}) {
 		logMsg := fmt.Sprintf(s, args...)
 		c.UI.Output(logMsg, terminal.WithLibraryStyle())
 	}
 
+	// Setup actionConfig for managing Helm release.
 	actionConfig := new(action.Configuration)
-	actionConfig, err = helm.InitActionConfig(actionConfig, c.flagNamespace, settings, uiLogger)
+	actionConfig, err := helm.InitActionConfig(actionConfig, c.flagNamespace, settings, uiLogger)
 	if err != nil {
 		c.UI.Output(err.Error(), terminal.WithErrorStyle())
 		return 1
 	}
 
-	c.UI.Output(fmt.Sprintf("Checking if %s can be uninstalled", common.ReleaseTypeConsulDemo), terminal.WithHeaderStyle())
+	// Check for the Consul demo application and prompt for deletion.
+	c.UI.Output(fmt.Sprintf("Checking if %s is installed.", common.ReleaseTypeConsulDemo), terminal.WithHeaderStyle())
 	foundConsulDemo, foundDemoReleaseName, foundDemoReleaseNamespace, err := c.findExistingInstallation(&helm.CheckForInstallationsOptions{
 		Settings:              settings,
 		ReleaseName:           common.ConsulDemoAppReleaseName,
@@ -216,7 +210,7 @@ func (c *Command) Run(args []string) int {
 
 	// If -auto-approve=true and -wipe-data=false, we should only uninstall the release, and skip deleting resources.
 	if c.flagAutoApprove && !c.flagWipeData {
-		c.UI.Output("Skipping deleting PVCs, secrets, and service accounts.", terminal.WithSuccessStyle())
+		c.UI.Output("Skipping deleting PVCs, secrets, and service accounts because -auto-approve is true and -wipe-data is false.", terminal.WithSuccessStyle())
 		return 0
 	}
 
@@ -245,7 +239,20 @@ func (c *Command) Run(args []string) int {
 	// Jobs, Cluster Roles, and Cluster Role Bindings.
 	if !c.flagAutoApprove {
 		confirmation, err := c.UI.Input(&terminal.Input{
-			Prompt: fmt.Sprintf("WARNING: Proceed with deleting PVCs, Secrets, Service Accounts, Roles, Role Bindings, Jobs, Cluster Roles, and Cluster Role Bindings for the following installation? \n\n   Name: %s \n   Namespace: %s \n\n   Only approve if all data from this installation can be deleted. (y/N)", foundReleaseName, foundReleaseNamespace),
+			Prompt: fmt.Sprintf(`WARNING: Proceed with deleting 
+	- Persistent Volume Claims
+	- Secrets 
+	- Service Accounts 
+	- Roles 
+	- Role Bindings
+	- Jobs
+	- Cluster Roles 
+	- Cluster Role Bindings 
+for the following installation?
+	Name: %s 
+	Namespace: %s 
+
+Only approve if all data from this installation can be deleted. (y/N)`, foundReleaseName, foundReleaseNamespace),
 			Style:  terminal.WarningStyle,
 			Secret: false,
 		})
