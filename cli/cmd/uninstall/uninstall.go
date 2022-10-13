@@ -140,7 +140,6 @@ func (c *Command) Run(args []string) int {
 		c.UI.Output("Unable to validate flags: %v.", err.Error(), terminal.WithErrorStyle())
 		return 1
 	}
-	c.timeoutDuration = duration
 
 	// helmCLI.New() will create a settings object which is used by the Helm Go SDK calls.
 	settings := helmCLI.New()
