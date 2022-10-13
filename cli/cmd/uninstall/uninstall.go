@@ -173,38 +173,52 @@ func (c *Command) Run(args []string) int {
 	if err != nil {
 		c.UI.Output(err.Error(), terminal.WithErrorStyle())
 		return 1
-	} else if !foundConsulDemo {
-		c.UI.Output(fmt.Sprintf("No existing %s installation found.", common.ReleaseTypeConsulDemo), terminal.WithInfoStyle())
 	}
-
-	found, foundReleaseName, foundReleaseNamespace, err :=
-		c.findExistingInstallation(&helm.CheckForInstallationsOptions{
-			Settings:    settings,
-			ReleaseName: common.DefaultReleaseName,
-			DebugLog:    uiLogger,
-		})
-	if err != nil {
-		c.UI.Output(err.Error(), terminal.WithErrorStyle())
-		return 1
-	}
-
 	if foundConsulDemo {
-		err = c.uninstallHelmRelease(foundDemoReleaseName, foundDemoReleaseNamespace, common.ReleaseTypeConsulDemo, settings, uiLogger, actionConfig)
+		doDeletion, err := c.promptDeletion(common.ReleaseTypeConsulDemo, foundDemoReleaseName, foundDemoReleaseNamespace)
 		if err != nil {
 			c.UI.Output(err.Error(), terminal.WithErrorStyle())
 			return 1
+		}
+		if doDeletion {
+			if err := c.uninstallHelmRelease(foundDemoReleaseName, foundDemoReleaseNamespace, common.ReleaseTypeConsulDemo, settings, uiLogger, actionConfig); err != nil {
+				c.UI.Output(err.Error(), terminal.WithErrorStyle())
+				return 1
+			}
 		}
 	} else {
 		c.UI.Output(fmt.Sprintf("No existing %s installation found.", common.ReleaseTypeConsulDemo), terminal.WithInfoStyle())
 	}
 
-	c.UI.Output("Checking if Consul can be uninstalled", terminal.WithHeaderStyle())
+	// Check for Consul installation and prompt for deletion.
+	c.UI.Output(fmt.Sprintf("Checking if %s is installed.", common.ReleaseTypeConsul), terminal.WithHeaderStyle())
+	found, foundReleaseName, foundReleaseNamespace, err := c.findExistingInstallation(&helm.CheckForInstallationsOptions{
+		Settings:    settings,
+		ReleaseName: common.DefaultReleaseName,
+		DebugLog:    uiLogger,
+	})
+	if err != nil {
+		c.UI.Output(err.Error(), terminal.WithErrorStyle())
+		return 1
+	}
 	if found {
-		err = c.uninstallHelmRelease(foundReleaseName, foundReleaseNamespace, common.ReleaseTypeConsul, settings, uiLogger, actionConfig)
+		doDeletion, err := c.promptDeletion(common.ReleaseTypeConsul, foundReleaseName, foundReleaseNamespace)
 		if err != nil {
 			c.UI.Output(err.Error(), terminal.WithErrorStyle())
 			return 1
 		}
+		if doDeletion {
+			if err := c.deleteCustomResources(); err != nil {
+				c.UI.Output(err.Error(), terminal.WithErrorStyle())
+				return 1
+			}
+			if err := c.uninstallHelmRelease(foundReleaseName, foundReleaseNamespace, common.ReleaseTypeConsul, settings, uiLogger, actionConfig); err != nil {
+				c.UI.Output(err.Error(), terminal.WithErrorStyle())
+				return 1
+			}
+		}
+	} else {
+		c.UI.Output(fmt.Sprintf("No existing %s installation found.", common.ReleaseTypeConsul), terminal.WithInfoStyle())
 	}
 
 	// If -auto-approve=true and -wipe-data=false, we should only uninstall the release, and skip deleting resources.
@@ -356,30 +370,38 @@ func (c *Command) initKubernetes(settings *helmCLI.EnvSettings) error {
 	return nil
 }
 
-func (c *Command) uninstallHelmRelease(releaseName, namespace, releaseType string, settings *helmCLI.EnvSettings,
-	uiLogger action.DebugLog, actionConfig *action.Configuration) error {
+// promptDeletion asks the user if they would like to delete a given Helm installation.
+// It will return true if the user responds with "y" or "yes" (case-insensitive).
+// If the -auto-approve flag is true, the prompt will be skipped.
+func (c *Command) promptDeletion(releaseType, releaseName, releaseNamespace string) (bool, error) {
 	c.UI.Output(fmt.Sprintf("Existing %s installation found.", releaseType), terminal.WithSuccessStyle())
 	c.UI.Output(fmt.Sprintf("%s Uninstall Summary", cases.Title(language.English).String(releaseType)), terminal.WithHeaderStyle())
 	c.UI.Output("Name: %s", releaseName, terminal.WithInfoStyle())
-	c.UI.Output("Namespace: %s", namespace, terminal.WithInfoStyle())
+	c.UI.Output("Namespace: %s", releaseNamespace, terminal.WithInfoStyle())
 
-	// Prompt for approval to uninstall Helm release.
-	// Actually call out to `helm delete`.
-	if !c.flagAutoApprove {
-		confirmation, err := c.UI.Input(&terminal.Input{
-			Prompt: "Proceed with uninstall? (y/N)",
-			Style:  terminal.InfoStyle,
-			Secret: false,
-		})
-		if err != nil {
-			return err
-		}
-		if common.Abort(confirmation) {
-			c.UI.Output("Uninstall aborted. To learn how to customize the uninstall, run:\nconsul-k8s uninstall --help", terminal.WithInfoStyle())
-			return nil
-		}
+	if c.flagAutoApprove {
+		return true, nil
 	}
 
+	confirmation, err := c.UI.Input(&terminal.Input{
+		Prompt: "Proceed with uninstall? (y/N)",
+		Style:  terminal.InfoStyle,
+		Secret: false,
+	})
+	if err != nil {
+		return false, err
+	}
+	if common.Abort(confirmation) {
+		c.UI.Output("Uninstall aborted. To learn how to customize the uninstall, run:\nconsul-k8s uninstall --help", terminal.WithInfoStyle())
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// uninstallHelmRelease uses Helm to uninstall a given release and prints out
+// progress using the uiLogger that is passed in.
+func (c *Command) uninstallHelmRelease(releaseName, namespace, releaseType string, settings *helmCLI.EnvSettings, uiLogger action.DebugLog, actionConfig *action.Configuration) error {
 	actionConfig, err := helm.InitActionConfig(actionConfig, namespace, settings, uiLogger)
 	if err != nil {
 		return err
@@ -400,38 +422,8 @@ func (c *Command) uninstallHelmRelease(releaseName, namespace, releaseType strin
 	return nil
 }
 
-func (c *Command) Help() string {
-	c.once.Do(c.init)
-	s := "Usage: consul-k8s uninstall [flags]" + "\n" + "Uninstall Consul with options to delete data and resources associated with Consul installation." + "\n\n" + c.help
-	return s
-}
-
-func (c *Command) Synopsis() string {
-	return "Uninstall Consul deployment."
-}
-
-// AutocompleteFlags returns a mapping of supported flags and autocomplete
-// options for this command. The map key for the Flags map should be the
-// complete flag such as "-foo" or "--foo".
-func (c *Command) AutocompleteFlags() complete.Flags {
-	return complete.Flags{
-		fmt.Sprintf("-%s", flagAutoApprove): complete.PredictNothing,
-		fmt.Sprintf("-%s", flagNamespace):   complete.PredictNothing,
-		fmt.Sprintf("-%s", flagReleaseName): complete.PredictNothing,
-		fmt.Sprintf("-%s", flagWipeData):    complete.PredictNothing,
-		fmt.Sprintf("-%s", flagTimeout):     complete.PredictNothing,
-		fmt.Sprintf("-%s", flagContext):     complete.PredictNothing,
-		fmt.Sprintf("-%s", flagKubeconfig):  complete.PredictFiles("*"),
-	}
-}
-
-// AutocompleteArgs returns the argument predictor for this command.
-// Since argument completion is not supported, this will return
-// complete.PredictNothing.
-func (c *Command) AutocompleteArgs() complete.Predictor {
-	return complete.PredictNothing
-}
-
+// findExistingInstallation uses Helm to check if a given Helm deployment is
+// present in the Kubernetes cluster.
 func (c *Command) findExistingInstallation(options *helm.CheckForInstallationsOptions) (bool, string, string, error) {
 	found, releaseName, namespace, err := c.helmActionsRunner.CheckForInstallations(options)
 	if err != nil {
