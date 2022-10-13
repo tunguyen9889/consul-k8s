@@ -265,18 +265,7 @@ Only approve if all data from this installation can be deleted. (y/N)`, foundRel
 			return 1
 		}
 	}
-
-	if err := c.deletePVCs(foundReleaseName, foundReleaseNamespace); err != nil {
-		c.UI.Output(err.Error(), terminal.WithErrorStyle())
-		return 1
-	}
-
-	if err := c.deleteSecrets(foundReleaseNamespace); err != nil {
-		c.UI.Output(err.Error(), terminal.WithErrorStyle())
-		return 1
-	}
-
-	if err := c.deleteServiceAccounts(foundReleaseName, foundReleaseNamespace); err != nil {
+	if err := c.wipeData(foundReleaseName, foundReleaseNamespace); err != nil {
 		c.UI.Output(err.Error(), terminal.WithErrorStyle())
 		return 1
 	}
@@ -457,6 +446,43 @@ func (c *Command) findExistingInstallation(options *helm.CheckForInstallationsOp
 		}
 		return false, "", "", notFoundError
 	}
+}
+
+// wipeData deletes all resources associated with the Consul installation.
+func (c *Command) wipeData(foundReleaseName, foundReleaseNamespace string) error {
+	if err := c.deletePVCs(foundReleaseName, foundReleaseNamespace); err != nil {
+		return err
+	}
+
+	if err := c.deleteSecrets(foundReleaseNamespace); err != nil {
+		return err
+	}
+
+	if err := c.deleteServiceAccounts(foundReleaseName, foundReleaseNamespace); err != nil {
+		return err
+	}
+
+	if err := c.deleteRoles(foundReleaseName, foundReleaseNamespace); err != nil {
+		return err
+	}
+
+	if err := c.deleteRoleBindings(foundReleaseName, foundReleaseNamespace); err != nil {
+		return err
+	}
+
+	if err := c.deleteJobs(foundReleaseName, foundReleaseNamespace); err != nil {
+		return err
+	}
+
+	if err := c.deleteClusterRoles(foundReleaseName); err != nil {
+		return err
+	}
+
+	if err := c.deleteClusterRoleBindings(foundReleaseName); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // deletePVCs deletes any pvcs that have the label release={{foundReleaseName}} and waits for them to be deleted.
