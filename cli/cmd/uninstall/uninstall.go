@@ -421,6 +421,7 @@ type crds struct {
 // by Consul. It then iterates over all custom resources matching these
 // definitions and deletes them.
 func (c *Command) deleteCustomResources() error {
+	c.UI.Output("Deleting any Consul custom resources that may exist.", terminal.WithInfoStyle())
 	raw, err := c.kubernetes.CoreV1().RESTClient().Get().AbsPath("/apis/apiextensions.k8s.io/v1/customresourcedefinitions").DoRaw(c.Ctx)
 	if err != nil {
 		return err
@@ -430,18 +431,25 @@ func (c *Command) deleteCustomResources() error {
 		return err
 	}
 
+	namespaces, err := c.kubernetes.CoreV1().Namespaces().List(c.Ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
 	for _, crd := range crds.Items {
 		if crd.Spec.Group == "consul.hashicorp.com" {
 			for _, version := range crd.Spec.Versions {
-				u := &unstructured.Unstructured{}
-				u.SetGroupVersionKind(schema.GroupVersionKind{
-					Group:   "consul.hashicorp.com",
-					Kind:    crd.Spec.Names.Kind,
-					Version: version.Name,
-				})
-				err = c.client.DeleteAllOf(c.Ctx, u, client.InNamespace("default"))
-				if err != nil {
-					return err
+				for _, namespace := range namespaces.Items {
+					cr := &unstructured.Unstructured{}
+					cr.SetGroupVersionKind(schema.GroupVersionKind{
+						Group:   "consul.hashicorp.com",
+						Kind:    crd.Spec.Names.Kind,
+						Version: version.Name,
+					})
+					err = c.client.DeleteAllOf(c.Ctx, cr, client.InNamespace(namespace.Name))
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -764,3 +772,37 @@ func (c *Command) deleteClusterRoleBindings(foundReleaseName string) error {
 	}
 	return nil
 }
+
+/*
+// deleteCustomResourceDefinitions
+func (c *Command) deleteCustomResourceDefinitions() error {
+	raw, err := c.kubernetes.CoreV1().RESTClient().Get().AbsPath("/apis/apiextensions.k8s.io/v1/customresourcedefinitions").DoRaw(c.Ctx)
+	if err != nil {
+		return err
+	}
+	var crds crds
+	if err := json.Unmarshal(raw, &crds); err != nil {
+		return err
+	}
+
+	for _, crd := range crds.Items {
+		if crd.Spec.Group == "consul.hashicorp.com" {
+			for _, version := range crd.Spec.Versions {
+				cr := &unstructured.Unstructured{}
+				cr.SetGroupVersionKind(schema.GroupVersionKind{
+					Group:   "consul.hashicorp.com",
+					Kind:    crd.Spec.Names.Kind,
+					Version: version.Name,
+				})
+				err = c.client.DeleteAllOf(c.Ctx, cr, client.InNamespace("default"))
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+*/
