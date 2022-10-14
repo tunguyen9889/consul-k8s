@@ -3,6 +3,7 @@ package uninstall
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -221,6 +222,12 @@ func (c *Command) Run(args []string) int {
 		c.UI.Output(fmt.Sprintf("No existing %s installation found.", common.ReleaseTypeConsul), terminal.WithInfoStyle())
 	}
 
+	// Warn the user if not all CRDs were deleted.
+	if err := c.checkCustomResourceDefinitions(); err != nil {
+		c.UI.Output(err.Error(), terminal.WithErrorStyle())
+		return 1
+	}
+
 	// If -auto-approve=true and -wipe-data=false, we should only uninstall the release, and skip deleting resources.
 	if c.flagAutoApprove && !c.flagWipeData {
 		c.UI.Output("Skipping deleting PVCs, secrets, and service accounts because -auto-approve is true and -wipe-data is false.", terminal.WithSuccessStyle())
@@ -421,7 +428,7 @@ type crds struct {
 // by Consul. It then iterates over all custom resources matching these
 // definitions and deletes them.
 func (c *Command) deleteCustomResources() error {
-	c.UI.Output("Deleting any Consul custom resources that may exist.", terminal.WithInfoStyle())
+	c.UI.Output("Deleting any Consul custom resources that may exist.", terminal.WithLibraryStyle())
 	raw, err := c.kubernetes.CoreV1().RESTClient().Get().AbsPath("/apis/apiextensions.k8s.io/v1/customresourcedefinitions").DoRaw(c.Ctx)
 	if err != nil {
 		return err
@@ -773,9 +780,10 @@ func (c *Command) deleteClusterRoleBindings(foundReleaseName string) error {
 	return nil
 }
 
-/*
-// deleteCustomResourceDefinitions
-func (c *Command) deleteCustomResourceDefinitions() error {
+// checkCustomResourceDefinitions fetches a list of all custom resource definitions
+// in the cluster and prints an error if any of the CRDs in the list are managed
+// by Consul. This alerts a user that they may need to remove this CRD manually.
+func (c *Command) checkCustomResourceDefinitions() error {
 	raw, err := c.kubernetes.CoreV1().RESTClient().Get().AbsPath("/apis/apiextensions.k8s.io/v1/customresourcedefinitions").DoRaw(c.Ctx)
 	if err != nil {
 		return err
@@ -785,24 +793,17 @@ func (c *Command) deleteCustomResourceDefinitions() error {
 		return err
 	}
 
+	var remaining []string
 	for _, crd := range crds.Items {
 		if crd.Spec.Group == "consul.hashicorp.com" {
-			for _, version := range crd.Spec.Versions {
-				cr := &unstructured.Unstructured{}
-				cr.SetGroupVersionKind(schema.GroupVersionKind{
-					Group:   "consul.hashicorp.com",
-					Kind:    crd.Spec.Names.Kind,
-					Version: version.Name,
-				})
-				err = c.client.DeleteAllOf(c.Ctx, cr, client.InNamespace("default"))
-				if err != nil {
-					return err
-				}
-			}
+			remaining = append(remaining, crd.Metadata.Name)
 		}
+	}
+	if len(remaining) > 0 {
+		c.UI.Output(`Some Custom Resource Definitions were unable to be deleted.
+Please check the finalizers for the following custom resource definitions as they may be preventing deletion:
+%s.`, strings.Join(remaining, ", "), terminal.WithErrorStyle())
 	}
 
 	return nil
 }
-
-*/
