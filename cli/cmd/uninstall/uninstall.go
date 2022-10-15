@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -50,7 +49,6 @@ type Command struct {
 	helmActionsRunner helm.HelmActionsRunner
 
 	// Configuration for interacting with Kubernetes.
-	restConfig *rest.Config
 	kubernetes kubernetes.Interface
 	client     client.Client
 
@@ -356,20 +354,13 @@ func (c *Command) initKubernetes(settings *helmCLI.EnvSettings) error {
 		settings.KubeContext = c.flagKubeContext
 	}
 
-	if c.restConfig == nil {
-		if c.restConfig, err = settings.RESTClientGetter().ToRESTConfig(); err != nil {
-			return fmt.Errorf("error creating Kubernetes REST config %v", err)
-		}
+	restConfig, err := settings.RESTClientGetter().ToRESTConfig()
+	if err != nil {
+		return fmt.Errorf("error creating Kubernetes REST config %v", err)
 	}
 
 	if c.kubernetes == nil {
-		if c.kubernetes, err = kubernetes.NewForConfig(c.restConfig); err != nil {
-			return fmt.Errorf("error creating Kubernetes client %v", err)
-		}
-	}
-
-	if c.client == nil {
-		if c.client, err = client.New(c.restConfig, client.Options{}); err != nil {
+		if c.kubernetes, err = kubernetes.NewForConfig(restConfig); err != nil {
 			return fmt.Errorf("error creating Kubernetes client %v", err)
 		}
 	}
@@ -406,7 +397,8 @@ func (c *Command) promptDeletion(releaseType, releaseName, releaseNamespace stri
 	return true, nil
 }
 
-// crds is used to deserialize JSON returned from the `/apis/apiextensions.k8s.io/v1/customresourcedefinitions` endpoint.
+// crds is used to deserialize JSON returned from the
+// `/apis/apiextensions.k8s.io/v1/customresourcedefinitions` endpoint.
 type crds struct {
 	Items []struct {
 		Metadata struct {
@@ -443,11 +435,11 @@ func (c *Command) deleteCustomResources() error {
 		return err
 	}
 
+	cr := &unstructured.Unstructured{}
 	for _, crd := range crds.Items {
 		if crd.Spec.Group == "consul.hashicorp.com" {
 			for _, version := range crd.Spec.Versions {
 				for _, namespace := range namespaces.Items {
-					cr := &unstructured.Unstructured{}
 					cr.SetGroupVersionKind(schema.GroupVersionKind{
 						Group:   "consul.hashicorp.com",
 						Kind:    crd.Spec.Names.Kind,
@@ -510,31 +502,24 @@ func (c *Command) wipeData(foundReleaseName, foundReleaseNamespace string) error
 	if err := c.deletePVCs(foundReleaseName, foundReleaseNamespace); err != nil {
 		return err
 	}
-
 	if err := c.deleteSecrets(foundReleaseNamespace); err != nil {
 		return err
 	}
-
 	if err := c.deleteServiceAccounts(foundReleaseName, foundReleaseNamespace); err != nil {
 		return err
 	}
-
 	if err := c.deleteRoles(foundReleaseName, foundReleaseNamespace); err != nil {
 		return err
 	}
-
 	if err := c.deleteRoleBindings(foundReleaseName, foundReleaseNamespace); err != nil {
 		return err
 	}
-
 	if err := c.deleteJobs(foundReleaseName, foundReleaseNamespace); err != nil {
 		return err
 	}
-
 	if err := c.deleteClusterRoles(foundReleaseName); err != nil {
 		return err
 	}
-
 	if err := c.deleteClusterRoleBindings(foundReleaseName); err != nil {
 		return err
 	}

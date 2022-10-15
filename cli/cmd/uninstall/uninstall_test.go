@@ -24,8 +24,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
+	clientFake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestDeletePVCs(t *testing.T) {
@@ -358,6 +360,81 @@ func TestDeleteClusterRoleBindings(t *testing.T) {
 	require.Equal(t, clusterrolebindings.Items[0].Name, clusterrolebinding3.Name)
 }
 
+func TestDeleteCustomResources(t *testing.T) {
+	namespace := "default"
+	kind := []string{}
+	version := "v1alpha1"
+	group := "consul.hashicorp.com"
+
+	cases := map[string]struct {
+		crs      interface{}
+		crds     crds
+		expected string
+	}{
+		"Without CRDs or CRs": {},
+		"Without CRs":         {},
+		"With CRs":            {},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			buf := new(bytes.Buffer)
+			c := getInitializedCommand(t, buf)
+			c.kubernetes = fake.NewSimpleClientset()
+			c.client = clientFake.NewClientBuilder().Build()
+
+			err := c.deleteCustomResources()
+			require.NoError(t, err)
+
+			actual := buf.String()
+			require.Equal(t, tc.expected, actual)
+
+			// Check to ensure no CRs exist anymore.
+			crs := []string{}
+			cr := &unstructured.Unstructured{}
+			for _, kind := range kind {
+				cr.SetGroupVersionKind(schema.GroupVersionKind{
+					Group:   group,
+					Kind:    kind,
+					Version: version,
+				})
+			}
+		})
+	}
+}
+
+func TestCheckCustomResourceDefinitions(t *testing.T) {
+	cases := map[string]struct {
+		crds     crds
+		expected string
+	}{
+		"Without CRDs": {
+			crds:     crds{},
+			expected: "",
+		},
+		"With CRDs": {
+			crds:     crds{},
+			expected: "",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			buf := new(bytes.Buffer)
+			c := getInitializedCommand(t, buf)
+			c.kubernetes = fake.NewSimpleClientset()
+			c.client = clientFake.NewClientBuilder().Build()
+
+			err := c.checkCustomResourceDefinitions()
+			require.NoError(t, err)
+
+			actual := buf.String()
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+
+}
+
 func TestTaskCreateCommand_AutocompleteFlags(t *testing.T) {
 	t.Parallel()
 	cmd := getInitializedCommand(t, nil)
@@ -389,7 +466,6 @@ func TestTaskCreateCommand_AutocompleteArgs(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	var k8s kubernetes.Interface
 	cases := map[string]struct {
 		input                                   []string
 		messages                                []string
@@ -549,8 +625,9 @@ func TestUninstall(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			buf := new(bytes.Buffer)
 			c := getInitializedCommand(t, buf)
-			k8s = fake.NewSimpleClientset()
-			c.kubernetes = k8s
+			c.kubernetes = fake.NewSimpleClientset()
+			c.client = clientFake.NewClientBuilder().Build()
+
 			mock := tc.helmActionsRunner
 			c.helmActionsRunner = mock
 			if tc.preProcessingFunc != nil {
