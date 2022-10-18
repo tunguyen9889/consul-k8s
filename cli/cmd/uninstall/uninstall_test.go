@@ -361,7 +361,7 @@ func TestDeleteClusterRoleBindings(t *testing.T) {
 }
 
 func TestDeleteCustomResources(t *testing.T) {
-	namespace := "default"
+	//namespace := "default"
 	kind := []string{}
 	version := "v1alpha1"
 	group := "consul.hashicorp.com"
@@ -383,14 +383,14 @@ func TestDeleteCustomResources(t *testing.T) {
 			c.kubernetes = fake.NewSimpleClientset()
 			c.client = clientFake.NewClientBuilder().Build()
 
-			err := c.deleteCustomResources()
+			err := c.patchCustomResources()
 			require.NoError(t, err)
 
 			actual := buf.String()
 			require.Equal(t, tc.expected, actual)
 
 			// Check to ensure no CRs exist anymore.
-			crs := []string{}
+			//crs := []string{}
 			cr := &unstructured.Unstructured{}
 			for _, kind := range kind {
 				cr.SetGroupVersionKind(schema.GroupVersionKind{

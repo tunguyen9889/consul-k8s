@@ -3,6 +3,7 @@ package uninstall
 import (
 	"encoding/json"
 	"fmt"
+	"k8s.io/client-go/rest"
 	"strings"
 	"sync"
 	"time"
@@ -51,6 +52,7 @@ type Command struct {
 	// Configuration for interacting with Kubernetes.
 	kubernetes kubernetes.Interface
 	client     client.Client
+	restClient rest.Interface
 
 	set *flag.Sets
 
@@ -207,10 +209,6 @@ func (c *Command) Run(args []string) int {
 			return 1
 		}
 		if doDeletion {
-			if err := c.deleteCustomResources(); err != nil {
-				c.UI.Output(err.Error(), terminal.WithErrorStyle())
-				return 1
-			}
 			if err := c.uninstallHelmRelease(foundReleaseName, foundReleaseNamespace, common.ReleaseTypeConsul, settings, uiLogger, actionConfig); err != nil {
 				c.UI.Output(err.Error(), terminal.WithErrorStyle())
 				return 1
@@ -395,66 +393,6 @@ func (c *Command) promptDeletion(releaseType, releaseName, releaseNamespace stri
 	}
 
 	return true, nil
-}
-
-// crds is used to deserialize JSON returned from the
-// `/apis/apiextensions.k8s.io/v1/customresourcedefinitions` endpoint.
-type crds struct {
-	Items []struct {
-		Metadata struct {
-			Name string `json:"name"`
-		} `json:"metadata"`
-		Spec struct {
-			Group string `json:"group"`
-			Names struct {
-				Kind string `json:"kind"`
-			} `json:"names"`
-			Versions []struct {
-				Name string `json:"name"`
-			} `json:"versions"`
-		} `json:"spec"`
-	} `json:"items"`
-}
-
-// deleteCustomResources gets a list of all custom resource definitions defined
-// by Consul. It then iterates over all custom resources matching these
-// definitions and deletes them.
-func (c *Command) deleteCustomResources() error {
-	c.UI.Output("Deleting any Consul custom resources that may exist.", terminal.WithLibraryStyle())
-	raw, err := c.kubernetes.CoreV1().RESTClient().Get().AbsPath("/apis/apiextensions.k8s.io/v1/customresourcedefinitions").DoRaw(c.Ctx)
-	if err != nil {
-		return err
-	}
-	var crds crds
-	if err := json.Unmarshal(raw, &crds); err != nil {
-		return err
-	}
-
-	namespaces, err := c.kubernetes.CoreV1().Namespaces().List(c.Ctx, metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-
-	cr := &unstructured.Unstructured{}
-	for _, crd := range crds.Items {
-		if crd.Spec.Group == "consul.hashicorp.com" {
-			for _, version := range crd.Spec.Versions {
-				for _, namespace := range namespaces.Items {
-					cr.SetGroupVersionKind(schema.GroupVersionKind{
-						Group:   "consul.hashicorp.com",
-						Kind:    crd.Spec.Names.Kind,
-						Version: version.Name,
-					})
-					err = c.client.DeleteAllOf(c.Ctx, cr, client.InNamespace(namespace.Name))
-					if err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	return nil
 }
 
 // uninstallHelmRelease uses Helm to uninstall a given release and prints out
@@ -762,6 +700,59 @@ func (c *Command) deleteClusterRoleBindings(foundReleaseName string) error {
 		}
 		c.UI.Output("Consul cluster role bindings deleted.", terminal.WithSuccessStyle())
 	}
+	return nil
+}
+
+// patchCustomResources gets a list of all custom resource definitions defined
+// by Consul. It then iterates over all custom resources matching these
+// definitions and removes their finalizers.
+func (c *Command) patchCustomResources() error {
+	c.UI.Output("Patching Consul custom resource finalizers", terminal.WithLibraryStyle())
+
+	// Use the Kubernetes REST client unless we patch one in for testing.
+	if c.restClient == nil {
+		c.restClient = c.kubernetes.CoreV1().RESTClient()
+	}
+
+	raw, err := c.restClient.Get().AbsPath("/apis/apiextensions.k8s.io/v1/customresourcedefinitions").DoRaw(c.Ctx)
+	if err != nil {
+		return err
+	}
+	var crds crds
+	if err := json.Unmarshal(raw, &crds); err != nil {
+		return err
+	}
+
+	raw, err = c.restClient.Get().AbsPath("").DoRaw(c.Ctx)
+
+	namespaces, err := c.kubernetes.CoreV1().Namespaces().List(c.Ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	// Patch the CR before deleting it.
+	// No, don't delete CR, just patch.
+	// Patch the CRs after the Helm delete.
+
+	cr := &unstructured.Unstructured{}
+	for _, crd := range crds.Items {
+		if crd.Spec.Group == "consul.hashicorp.com" {
+			for _, version := range crd.Spec.Versions {
+				for _, namespace := range namespaces.Items {
+					cr.SetGroupVersionKind(schema.GroupVersionKind{
+						Group:   "consul.hashicorp.com",
+						Kind:    crd.Spec.Names.Kind,
+						Version: version.Name,
+					})
+					err = c.client.DeleteAllOf(c.Ctx, cr, client.InNamespace(namespace.Name))
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
