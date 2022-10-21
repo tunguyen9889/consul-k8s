@@ -97,6 +97,7 @@ func TestPeering_ConnectNamespaces(t *testing.T) {
 			staticClientPeerClusterContext := env.Context(t, environment.SecondaryContextName)
 
 			commonHelmValues := map[string]string{
+				"global.image":                  "ndhanushkodi/consul-dev:xdsfixent2",
 				"global.peering.enabled":        "true",
 				"global.enableConsulNamespaces": "true",
 

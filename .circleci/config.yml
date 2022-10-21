@@ -1230,6 +1230,21 @@ workflows:
 #          context: consul-ci
 #          requires:
 #            - dev-upload-docker
+      - cleanup-gcp-resources
+      - cleanup-azure-resources
+      - cleanup-eks-resources
+      - acceptance-gke-1-23:
+          requires:
+            - cleanup-gcp-resources
+            - dev-upload-docker
+      - acceptance-eks-1-21:
+          requires:
+            - cleanup-eks-resources
+            - dev-upload-docker
+      - acceptance-aks-1-22:
+          requires:
+            - cleanup-azure-resources
+            - dev-upload-docker
   nightly-acceptance-tests:
     triggers:
       - schedule:
