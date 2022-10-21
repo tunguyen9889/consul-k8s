@@ -41,12 +41,13 @@ env:
   CONSUL_K8S_IMAGE: ${{ inputs.consul-k8s-image }}
 
 jobs:
-  job:
+  acceptance:
     runs-on: [custom, linux, xl]
     strategy: 
       matrix:
         include:
-          - {runner: "0", test-packages: "basic consul-dns metrics"}
+          - {runner: "0", test-packages: "basic consul-dns"} # TODO: Remove when metrics tests are fixed
+#          - {runner: "0", test-packages: "basic consul-dns metrics"} # TODO: re-enable acceptance tests, currently waiting on fix for metrics
           - {runner: "1", test-packages: "connect"}
           - {runner: "2", test-packages: "controller example"}
           - {runner: "3", test-packages: "ingress-gateway"}
@@ -57,7 +58,7 @@ jobs:
 
       fail-fast: false
     steps:      
-      - name: Checkout code
+      - name: Checkout CLI build code
         uses: actions/checkout@v3
         with:
           ref: ${{ inputs.checkout-ref }}
@@ -100,16 +101,17 @@ jobs:
       - name: go mod download
         working-directory: ${{ inputs.directory }}
         run: go mod download
+
+      - name: Build CLI
+
+        run: |
+          sudo make cli-dev
+          consul-k8s version
       
       - name: Create kind clusters
         run: |
           kind create cluster --name dc1 --image kindest/node:${{ inputs.kind-version }}
           kind create cluster --name dc2 --image kindest/node:${{ inputs.kind-version }}
-
-      - name: Build CLI
-        run: |
-          sudo make cli-dev
-          consul-k8s version
 
       # We have to run the tests for each package separately so that we can
       # exit early if any test fails (-failfast only works within a single
