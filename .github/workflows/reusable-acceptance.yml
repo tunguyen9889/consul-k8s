@@ -25,7 +25,7 @@ on:
       kind-version:
         required: false
         type: string
-        default: "v1.24.6"
+        default: "v1.24.4"
       checkout-ref:
         required: false
         type: string
