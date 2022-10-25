@@ -135,6 +135,8 @@ jobs:
       version: ${{ needs.get-product-version.outputs.product-version }}
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.checkout-ref }}
       - uses: actions/download-artifact@v3
         with:
           name: consul-cni_${{ env.version }}_linux_${{ matrix.arch }}.zip
