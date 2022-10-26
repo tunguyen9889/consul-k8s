@@ -41,7 +41,7 @@ jobs:
     with:
       name: ${{matrix.runner}}
       directory: acceptance/tests
-      additional-flags: "-kubeconfig="$primary_kubeconfig" -secondary-kubeconfig="$secondary_kubeconfig" -enable-pod-security-policies -enable-transparent-proxy -consul-image=hashicorppreview/consul-enterprise:${{ matrix.consul-version }}"
+      additional-flags: "-enable-pod-security-policies -enable-transparent-proxy -consul-image=hashicorppreview/consul-enterprise:${{ matrix.consul-version }}"
       gotestsum-version: 1.8.2
       checkout-ref: ${{ matrix.consul-k8s-branch }}
     secrets:

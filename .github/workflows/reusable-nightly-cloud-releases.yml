@@ -310,7 +310,9 @@ jobs:
               -enable-enterprise \
               -enable-multi-cluster \
               -debug-directory=${{ env.TEST_RESULTS }}/debug \
-              -consul-k8s-image=${{ inputs.consul-k8s-image }} 
+              -consul-k8s-image=${{ inputs.consul-k8s-image }} \
+              -kubeconfig="$primary_kubeconfig" \
+              -secondary-kubeconfig="$secondary_kubeconfig"
             then
               echo "Tests in ${pkg} failed, aborting early"
               exit_code=1
