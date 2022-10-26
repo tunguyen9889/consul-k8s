@@ -337,7 +337,7 @@ jobs:
           path: ${{ env.TEST_RESULTS }}/debug
 
       - name: terraform destroy
-        working_directory: ${{ inputs.terraform-directory }}
+        working-directory: ${{ inputs.terraform-directory }}
         run: |
           terraform destroy -var project=${CLOUDSDK_CORE_PROJECT} -auto-approve
           
