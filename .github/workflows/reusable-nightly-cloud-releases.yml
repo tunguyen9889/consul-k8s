@@ -191,12 +191,13 @@ jobs:
       image: inputs.consul-helm-test-image
     steps:
       - name: cleanup leftover resources
-        echo "${{ secrets.GOOGLE_CREDENTIALS }}" | gcloud auth activate-service-account --key-file=-
-        clusters=$(gcloud container clusters list --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --format json  | jq -r '.[] | select(.name | test("^consul-k8s-\\d+$")) | .name')
-        for cluster in $clusters; do
-        echo "Deleting $cluster GKE cluster"
-        gcloud container clusters delete $cluster --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --quiet
-        done
+        run: |
+          echo "${{ secrets.GOOGLE_CREDENTIALS }}" | gcloud auth activate-service-account --key-file=-
+          clusters=$(gcloud container clusters list --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --format json  | jq -r '.[] | select(.name | test("^consul-k8s-\\d+$")) | .name')
+          for cluster in $clusters; do
+          echo "Deleting $cluster GKE cluster"
+          gcloud container clusters delete $cluster --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --quiet
+          done
 
 
   acceptance:
