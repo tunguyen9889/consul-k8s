@@ -188,7 +188,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     container:
-      image: inputs.consul-helm-test-image
+      image: ${{ inputs.consul-helm-test-image }}
       credentials:
         username: ${{ secrets.DOCKER_USER }}
         password: ${{ secrets.DOCKER_PASS }}
