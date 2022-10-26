@@ -195,7 +195,7 @@ jobs:
     steps:
       - name: cleanup leftover resources
         run: |
-          echo "${{ secrets.GOOGLE_CREDENTIALS }}" | gcloud auth activate-service-account --key-file=-
+          echo '${{ secrets.GOOGLE_CREDENTIALS }}' | gcloud auth activate-service-account --key-file=-
           clusters=$(gcloud container clusters list --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --format json  | jq -r '.[] | select(.name | test("^consul-k8s-\\d+$")) | .name')
           for cluster in $clusters; do
           echo "Deleting $cluster GKE cluster"
@@ -278,7 +278,7 @@ jobs:
 #        working-directory: ${{ inputs.terraform-directory }}
 #        run: |
 #          terraform init
-#          echo "${{ secrets.GOOGLE_CREDENTIALS }}" | gcloud auth activate-service-account --key-file=-
+#          echo '${{ secrets.GOOGLE_CREDENTIALS }}' | gcloud auth activate-service-account --key-file=-
 #
 #          # On GKE, we're setting the build number instead of build URL because label values
 #          # cannot contain '/'.
