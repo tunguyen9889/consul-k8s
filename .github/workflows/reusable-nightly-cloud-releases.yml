@@ -196,11 +196,11 @@ jobs:
       - name: cleanup leftover resources
         run: |
           echo "${{ secrets.GOOGLE_CREDENTIALS }}" | gcloud auth activate-service-account --key-file=-
-          clusters=$(gcloud container clusters list --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --format json  | jq -r '.[] | select(.name | test("^consul-k8s-\\d+$")) | .name')
-          for cluster in $clusters; do
-          echo "Deleting $cluster GKE cluster"
-          gcloud container clusters delete $cluster --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --quiet
-          done
+#          clusters=$(gcloud container clusters list --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --format json  | jq -r '.[] | select(.name | test("^consul-k8s-\\d+$")) | .name')
+#          for cluster in $clusters; do
+#          echo "Deleting $cluster GKE cluster"
+#          gcloud container clusters delete $cluster --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --quiet
+#          done
 
 #  acceptance:
 #    needs: [ get-product-version, dev-upload-docker, get-go-version]
