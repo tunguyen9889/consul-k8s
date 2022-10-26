@@ -21,7 +21,7 @@ import (
 
 // Test that Sync Catalog works in a default and ACLsEnabled installations for partitions.
 func TestPartitions_Sync(t *testing.T) {
-	t.Skipf("currently unsupported in agentless")
+	t.Skipf("skipping this test because it's not yet supported with agentless")
 
 	env := suite.Environment()
 	cfg := suite.Config()

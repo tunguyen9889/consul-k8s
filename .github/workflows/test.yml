@@ -344,7 +344,7 @@ jobs:
 
   acceptance:
     needs: [ get-product-version, dev-upload-docker, get-go-version ]
-    uses: hashicorp/consul-k8s/.github/workflows/reusable-acceptance.yml@main
+    uses: ./.github/workflows/reusable-acceptance.yml
     with:
       name: acceptance
       directory: acceptance/tests
@@ -354,10 +354,11 @@ jobs:
       consul-k8s-image: docker.io/hashicorppreview/${{ github.event.repository.name }}-control-plane:${{ needs.get-product-version.outputs.product-version }}-pr-${{ github.sha }}
     secrets:
       CONSUL_ENT_LICENSE: ${{ secrets.CONSUL_ENT_LICENSE }}
+      VAULT_LICENSE: ${{ secrets.VAULT_LICENSE }}
 
   acceptance-tproxy:
     needs: [ get-product-version, dev-upload-docker, get-go-version ]
-    uses: hashicorp/consul-k8s/.github/workflows/reusable-acceptance.yml@main
+    uses: ./.github/workflows/reusable-acceptance.yml
     with:
       name: acceptance-tproxy
       directory: acceptance/tests
@@ -367,10 +368,11 @@ jobs:
       consul-k8s-image: docker.io/hashicorppreview/${{ github.event.repository.name }}-control-plane:${{ needs.get-product-version.outputs.product-version }}-pr-${{ github.sha }}
     secrets:
       CONSUL_ENT_LICENSE: ${{ secrets.CONSUL_ENT_LICENSE }}
+      VAULT_LICENSE: ${{ secrets.VAULT_LICENSE }}
 
   acceptance-cni:
     needs: [ get-product-version, dev-upload-docker, get-go-version ]
-    uses: hashicorp/consul-k8s/.github/workflows/reusable-acceptance.yml@main
+    uses: ./.github/workflows/reusable-acceptance.yml
     with:
       name: acceptance
       directory: acceptance/tests
@@ -380,5 +382,4 @@ jobs:
       consul-k8s-image: docker.io/hashicorppreview/${{ github.event.repository.name }}-control-plane:${{ needs.get-product-version.outputs.product-version }}-pr-${{ github.sha }}
     secrets:
       CONSUL_ENT_LICENSE: ${{ secrets.CONSUL_ENT_LICENSE }}
-
-
+      VAULT_LICENSE: ${{ secrets.VAULT_LICENSE }}
