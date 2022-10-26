@@ -199,8 +199,8 @@ jobs:
           gcloud container clusters delete $cluster --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --quiet
           done
 
-
   acceptance:
+    needs: [ get-product-version, dev-upload-docker, get-go-version]
     runs-on: [custom, linux, xl]
     strategy:
       matrix:
