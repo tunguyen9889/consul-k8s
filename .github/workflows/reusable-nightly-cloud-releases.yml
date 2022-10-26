@@ -202,145 +202,145 @@ jobs:
           gcloud container clusters delete $cluster --zone us-central1-a --project ${{ secrets.CLOUDSDK_CORE_PROJECT }} --quiet
           done
 
-  acceptance:
-    needs: [ get-product-version, dev-upload-docker, get-go-version]
-    runs-on: [custom, linux, xl]
-    strategy:
-      matrix:
-        include:
-          - {runner: "0", test-packages: "basic consul-dns"} # TODO: Remove when metrics tests are fixed
-          #          - {runner: "0", test-packages: "basic consul-dns metrics"} # TODO: re-enable acceptance tests, currently waiting on fix for metrics
-#          - {runner: "1", test-packages: "connect"}
-#          - {runner: "2", test-packages: "controller example"}
-#          - {runner: "3", test-packages: "ingress-gateway"}
-#          - {runner: "4", test-packages: "partitions"}
-#          - {runner: "5", test-packages: "peering"}
-#          - {runner: "6", test-packages: "snapshot-agent vault wan-federation"}
-#          - {runner: "7", test-packages: "cli sync terminating-gateway"}
-
-      fail-fast: false
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ inputs.checkout-ref }}
-
-      - name: Setup go
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ inputs.go-version }}
-
-      - name: Setup go mod cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Install pre-requisites # Install gotestsum, kind, kubectl, and helm
-        run: |
-          wget https://github.com/gotestyourself/gotestsum/releases/download/v1.6.4/gotestsum_1.6.4_linux_amd64.tar.gz
-          sudo tar -C /usr/local/bin -xzf gotestsum_1.6.4_linux_amd64.tar.gz
-          rm gotestsum_1.6.4_linux_amd64.tar.gz
-
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.15.0/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
-
-          curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x ./kubectl
-          sudo mv ./kubectl /usr/local/bin/kubectl
-
-          wget https://get.helm.sh/helm-v3.9.4-linux-amd64.tar.gz
-          tar -zxvf helm-v3.9.4-linux-amd64.tar.gz
-          sudo mv linux-amd64/helm /usr/local/bin/helm
-          
-          wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-          sudo apt update && sudo apt install terraform
-
-      - run: mkdir -p ${{ env.TEST_RESULTS }}
-
-      - name: go mod download
-        working-directory: ${{ inputs.directory }}
-        run: go mod download
-
-      - name: Build CLI
-
-        run: |
-          sudo make cli-dev
-          consul-k8s version
-
-      - name: terraform init & apply
-        working-directory: ${{ inputs.terraform-directory }}
-        run: |
-          terraform init
-          echo "${{ secrets.GOOGLE_CREDENTIALS }}" | gcloud auth activate-service-account --key-file=-
-          
-          # On GKE, we're setting the build number instead of build URL because label values
-          # cannot contain '/'.
-          terraform apply \
-            -var project=${{ secrets.CLOUDSDK_CORE_PROJECT }} \
-            -var init_cli=true \
-            -var cluster_count=2 \
-            -var labels="{\"github_sha\": \"${{ github.sha }}"}" \
-            -auto-approve
-          
-          primary_kubeconfig=$(terraform output -json | jq -r .kubeconfigs.value[0])
-          secondary_kubeconfig=$(terraform output -json | jq -r .kubeconfigs.value[1])
-          
-          echo "export primary_kubeconfig=$primary_kubeconfig" >> $BASH_ENV
-          echo "export secondary_kubeconfig=$secondary_kubeconfig" >> $BASH_ENV
-
-      # We have to run the tests for each package separately so that we can
-      # exit early if any test fails (-failfast only works within a single
-      # package).
-      - name: Run acceptance tests ${{ matrix.runner }}
-        working-directory: ${{ inputs.directory }}
-        if: github.repository_owner == 'hashicorp' # This prevents running on forks
-        run: |
-          exit_code=0
-          echo "Running packages: ${{ matrix.test-packages }}"
-          for pkg in $(echo ${{ matrix.test-packages }})
-          do
-            fullpkg="github.com/hashicorp/consul-k8s/${{ inputs.directory }}/${pkg}"
-            echo "Testing package: ${fullpkg}"
-            if ! gotestsum --jsonfile=jsonfile-${pkg////-} -- ${fullpkg} -p 1 -timeout 2h -failfast \
-              ${{ inputs.additional-flags }} \
-              -enable-enterprise \
-              -enable-multi-cluster \
-              -debug-directory=${{ env.TEST_RESULTS }}/debug \
-              -consul-k8s-image=${{ inputs.consul-k8s-image }} \
-              -kubeconfig="$primary_kubeconfig" \
-              -secondary-kubeconfig="$secondary_kubeconfig"
-            then
-              echo "Tests in ${pkg} failed, aborting early"
-              exit_code=1
-              break
-            fi
-          done
-          gotestsum --raw-command --junitfile "${{ env.TEST_RESULTS }}/gotestsum-report.xml" -- cat jsonfile*
-          exit $exit_code
-
-      - name: Upload tests
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ inputs.name }}-${{ matrix.test-packages }}-gotestsum-report.xml
-          path: ${{ env.TEST_RESULTS }}/gotestsum-report.xml
-
-      - name: Upload debug (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ inputs.name }}-${{ matrix.test-packages }}-debug-info
-          path: ${{ env.TEST_RESULTS }}/debug
-
-      - name: terraform destroy
-        working-directory: ${{ inputs.terraform-directory }}
-        run: |
-          terraform destroy -var project=${CLOUDSDK_CORE_PROJECT} -auto-approve
+#  acceptance:
+#    needs: [ get-product-version, dev-upload-docker, get-go-version]
+#    runs-on: [custom, linux, xl]
+#    strategy:
+#      matrix:
+#        include:
+#          - {runner: "0", test-packages: "basic consul-dns"} # TODO: Remove when metrics tests are fixed
+#          #          - {runner: "0", test-packages: "basic consul-dns metrics"} # TODO: re-enable acceptance tests, currently waiting on fix for metrics
+##          - {runner: "1", test-packages: "connect"}
+##          - {runner: "2", test-packages: "controller example"}
+##          - {runner: "3", test-packages: "ingress-gateway"}
+##          - {runner: "4", test-packages: "partitions"}
+##          - {runner: "5", test-packages: "peering"}
+##          - {runner: "6", test-packages: "snapshot-agent vault wan-federation"}
+##          - {runner: "7", test-packages: "cli sync terminating-gateway"}
+#
+#      fail-fast: false
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v3
+#        with:
+#          ref: ${{ inputs.checkout-ref }}
+#
+#      - name: Setup go
+#        uses: actions/setup-go@v3
+#        with:
+#          go-version: ${{ inputs.go-version }}
+#
+#      - name: Setup go mod cache
+#        uses: actions/cache@v3
+#        with:
+#          path: |
+#            ~/.cache/go-build
+#            ~/go/pkg/mod
+#          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+#          restore-keys: |
+#            ${{ runner.os }}-go-
+#
+#      - name: Install pre-requisites # Install gotestsum, kind, kubectl, and helm
+#        run: |
+#          wget https://github.com/gotestyourself/gotestsum/releases/download/v1.6.4/gotestsum_1.6.4_linux_amd64.tar.gz
+#          sudo tar -C /usr/local/bin -xzf gotestsum_1.6.4_linux_amd64.tar.gz
+#          rm gotestsum_1.6.4_linux_amd64.tar.gz
+#
+#          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.15.0/kind-linux-amd64
+#          chmod +x ./kind
+#          sudo mv ./kind /usr/local/bin/kind
+#
+#          curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
+#          chmod +x ./kubectl
+#          sudo mv ./kubectl /usr/local/bin/kubectl
+#
+#          wget https://get.helm.sh/helm-v3.9.4-linux-amd64.tar.gz
+#          tar -zxvf helm-v3.9.4-linux-amd64.tar.gz
+#          sudo mv linux-amd64/helm /usr/local/bin/helm
+#
+#          wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+#          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+#          sudo apt update && sudo apt install terraform
+#
+#      - run: mkdir -p ${{ env.TEST_RESULTS }}
+#
+#      - name: go mod download
+#        working-directory: ${{ inputs.directory }}
+#        run: go mod download
+#
+#      - name: Build CLI
+#
+#        run: |
+#          sudo make cli-dev
+#          consul-k8s version
+#
+#      - name: terraform init & apply
+#        working-directory: ${{ inputs.terraform-directory }}
+#        run: |
+#          terraform init
+#          echo "${{ secrets.GOOGLE_CREDENTIALS }}" | gcloud auth activate-service-account --key-file=-
+#
+#          # On GKE, we're setting the build number instead of build URL because label values
+#          # cannot contain '/'.
+#          terraform apply \
+#            -var project=${{ secrets.CLOUDSDK_CORE_PROJECT }} \
+#            -var init_cli=true \
+#            -var cluster_count=2 \
+#            -var labels="{\"github_sha\": \"${{ github.sha }}"}" \
+#            -auto-approve
+#
+#          primary_kubeconfig=$(terraform output -json | jq -r .kubeconfigs.value[0])
+#          secondary_kubeconfig=$(terraform output -json | jq -r .kubeconfigs.value[1])
+#
+#          echo "export primary_kubeconfig=$primary_kubeconfig" >> $BASH_ENV
+#          echo "export secondary_kubeconfig=$secondary_kubeconfig" >> $BASH_ENV
+#
+#      # We have to run the tests for each package separately so that we can
+#      # exit early if any test fails (-failfast only works within a single
+#      # package).
+#      - name: Run acceptance tests ${{ matrix.runner }}
+#        working-directory: ${{ inputs.directory }}
+#        if: github.repository_owner == 'hashicorp' # This prevents running on forks
+#        run: |
+#          exit_code=0
+#          echo "Running packages: ${{ matrix.test-packages }}"
+#          for pkg in $(echo ${{ matrix.test-packages }})
+#          do
+#            fullpkg="github.com/hashicorp/consul-k8s/${{ inputs.directory }}/${pkg}"
+#            echo "Testing package: ${fullpkg}"
+#            if ! gotestsum --jsonfile=jsonfile-${pkg////-} -- ${fullpkg} -p 1 -timeout 2h -failfast \
+#              ${{ inputs.additional-flags }} \
+#              -enable-enterprise \
+#              -enable-multi-cluster \
+#              -debug-directory=${{ env.TEST_RESULTS }}/debug \
+#              -consul-k8s-image=${{ inputs.consul-k8s-image }} \
+#              -kubeconfig="$primary_kubeconfig" \
+#              -secondary-kubeconfig="$secondary_kubeconfig"
+#            then
+#              echo "Tests in ${pkg} failed, aborting early"
+#              exit_code=1
+#              break
+#            fi
+#          done
+#          gotestsum --raw-command --junitfile "${{ env.TEST_RESULTS }}/gotestsum-report.xml" -- cat jsonfile*
+#          exit $exit_code
+#
+#      - name: Upload tests
+#        if: always()
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: ${{ inputs.name }}-${{ matrix.test-packages }}-gotestsum-report.xml
+#          path: ${{ env.TEST_RESULTS }}/gotestsum-report.xml
+#
+#      - name: Upload debug (on failure)
+#        if: failure()
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: ${{ inputs.name }}-${{ matrix.test-packages }}-debug-info
+#          path: ${{ env.TEST_RESULTS }}/debug
+#
+#      - name: terraform destroy
+#        working-directory: ${{ inputs.terraform-directory }}
+#        run: |
+#          terraform destroy -var project=${CLOUDSDK_CORE_PROJECT} -auto-approve
           
