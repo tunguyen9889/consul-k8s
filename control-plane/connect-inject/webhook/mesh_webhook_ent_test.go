@@ -1,6 +1,6 @@
 //go:build enterprise
 
-package connectinject
+package webhook
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/deckarep/golang-set"
 	logrtest "github.com/go-logr/logr/testing"
+	"github.com/hashicorp/consul-k8s/control-plane/connect-inject"
 	"github.com/hashicorp/consul-k8s/control-plane/helper/test"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/sdk/testutil"
@@ -54,11 +55,11 @@ func TestHandler_MutateWithNamespaces(t *testing.T) {
 				EnableNamespaces:           true,
 				ConsulDestinationNamespace: "default",
 				decoder:                    decoder,
-				Clientset:                  defaultTestClientWithNamespace(),
+				Clientset:                  connectinject.defaultTestClientWithNamespace(),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "default",
@@ -76,11 +77,11 @@ func TestHandler_MutateWithNamespaces(t *testing.T) {
 				EnableNamespaces:           true,
 				ConsulDestinationNamespace: "default",
 				decoder:                    decoder,
-				Clientset:                  clientWithNamespace("non-default"),
+				Clientset:                  connectinject.clientWithNamespace("non-default"),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "non-default",
@@ -98,11 +99,11 @@ func TestHandler_MutateWithNamespaces(t *testing.T) {
 				EnableNamespaces:           true,
 				ConsulDestinationNamespace: "dest",
 				decoder:                    decoder,
-				Clientset:                  defaultTestClientWithNamespace(),
+				Clientset:                  connectinject.defaultTestClientWithNamespace(),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "default",
@@ -120,11 +121,11 @@ func TestHandler_MutateWithNamespaces(t *testing.T) {
 				EnableNamespaces:           true,
 				ConsulDestinationNamespace: "dest",
 				decoder:                    decoder,
-				Clientset:                  clientWithNamespace("non-default"),
+				Clientset:                  connectinject.clientWithNamespace("non-default"),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "non-default",
@@ -143,11 +144,11 @@ func TestHandler_MutateWithNamespaces(t *testing.T) {
 				ConsulDestinationNamespace: "default", // will be overridden
 				EnableK8SNSMirroring:       true,
 				decoder:                    decoder,
-				Clientset:                  defaultTestClientWithNamespace(),
+				Clientset:                  connectinject.defaultTestClientWithNamespace(),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "default",
@@ -166,11 +167,11 @@ func TestHandler_MutateWithNamespaces(t *testing.T) {
 				ConsulDestinationNamespace: "default", // will be overridden
 				EnableK8SNSMirroring:       true,
 				decoder:                    decoder,
-				Clientset:                  clientWithNamespace("dest"),
+				Clientset:                  connectinject.clientWithNamespace("dest"),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "dest",
@@ -190,11 +191,11 @@ func TestHandler_MutateWithNamespaces(t *testing.T) {
 				EnableK8SNSMirroring:       true,
 				K8SNSMirroringPrefix:       "k8s-",
 				decoder:                    decoder,
-				Clientset:                  defaultTestClientWithNamespace(),
+				Clientset:                  connectinject.defaultTestClientWithNamespace(),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "default",
@@ -214,11 +215,11 @@ func TestHandler_MutateWithNamespaces(t *testing.T) {
 				EnableK8SNSMirroring:       true,
 				K8SNSMirroringPrefix:       "k8s-",
 				decoder:                    decoder,
-				Clientset:                  clientWithNamespace("dest"),
+				Clientset:                  connectinject.clientWithNamespace("dest"),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "dest",
@@ -301,11 +302,11 @@ func TestHandler_MutateWithNamespaces_ACLs(t *testing.T) {
 				ConsulDestinationNamespace: "default",
 				CrossNamespaceACLPolicy:    "cross-namespace-policy",
 				decoder:                    decoder,
-				Clientset:                  defaultTestClientWithNamespace(),
+				Clientset:                  connectinject.defaultTestClientWithNamespace(),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "default",
@@ -324,11 +325,11 @@ func TestHandler_MutateWithNamespaces_ACLs(t *testing.T) {
 				ConsulDestinationNamespace: "default",
 				CrossNamespaceACLPolicy:    "cross-namespace-policy",
 				decoder:                    decoder,
-				Clientset:                  clientWithNamespace("non-default"),
+				Clientset:                  connectinject.clientWithNamespace("non-default"),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "non-default",
@@ -347,11 +348,11 @@ func TestHandler_MutateWithNamespaces_ACLs(t *testing.T) {
 				ConsulDestinationNamespace: "dest",
 				CrossNamespaceACLPolicy:    "cross-namespace-policy",
 				decoder:                    decoder,
-				Clientset:                  defaultTestClientWithNamespace(),
+				Clientset:                  connectinject.defaultTestClientWithNamespace(),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "default",
@@ -370,11 +371,11 @@ func TestHandler_MutateWithNamespaces_ACLs(t *testing.T) {
 				ConsulDestinationNamespace: "dest",
 				CrossNamespaceACLPolicy:    "cross-namespace-policy",
 				decoder:                    decoder,
-				Clientset:                  clientWithNamespace("non-default"),
+				Clientset:                  connectinject.clientWithNamespace("non-default"),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "non-default",
@@ -394,11 +395,11 @@ func TestHandler_MutateWithNamespaces_ACLs(t *testing.T) {
 				EnableK8SNSMirroring:       true,
 				CrossNamespaceACLPolicy:    "cross-namespace-policy",
 				decoder:                    decoder,
-				Clientset:                  defaultTestClientWithNamespace(),
+				Clientset:                  connectinject.defaultTestClientWithNamespace(),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "default",
@@ -418,11 +419,11 @@ func TestHandler_MutateWithNamespaces_ACLs(t *testing.T) {
 				EnableK8SNSMirroring:       true,
 				CrossNamespaceACLPolicy:    "cross-namespace-policy",
 				decoder:                    decoder,
-				Clientset:                  clientWithNamespace("dest"),
+				Clientset:                  connectinject.clientWithNamespace("dest"),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "dest",
@@ -443,11 +444,11 @@ func TestHandler_MutateWithNamespaces_ACLs(t *testing.T) {
 				K8SNSMirroringPrefix:       "k8s-",
 				CrossNamespaceACLPolicy:    "cross-namespace-policy",
 				decoder:                    decoder,
-				Clientset:                  defaultTestClientWithNamespace(),
+				Clientset:                  connectinject.defaultTestClientWithNamespace(),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "default",
@@ -468,11 +469,11 @@ func TestHandler_MutateWithNamespaces_ACLs(t *testing.T) {
 				K8SNSMirroringPrefix:       "k8s-",
 				CrossNamespaceACLPolicy:    "cross-namespace-policy",
 				decoder:                    decoder,
-				Clientset:                  clientWithNamespace("dest"),
+				Clientset:                  connectinject.clientWithNamespace("dest"),
 			},
 			Req: admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object: encodeRaw(t, &corev1.Pod{
+					Object: connectinject.encodeRaw(t, &corev1.Pod{
 						Spec: basicSpec,
 					}),
 					Namespace: "dest",
@@ -609,7 +610,7 @@ func TestHandler_MutateWithNamespaces_Annotation(t *testing.T) {
 				ConsulConfig:               testClient.Cfg,
 				ConsulServerConnMgr:        testClient.Watcher,
 				decoder:                    decoder,
-				Clientset:                  clientWithNamespace(sourceKubeNS),
+				Clientset:                  connectinject.clientWithNamespace(sourceKubeNS),
 			}
 
 			pod := corev1.Pod{
@@ -626,7 +627,7 @@ func TestHandler_MutateWithNamespaces_Annotation(t *testing.T) {
 			}
 			request := admission.Request{
 				AdmissionRequest: admissionv1.AdmissionRequest{
-					Object:    encodeRaw(t, &pod),
+					Object:    connectinject.encodeRaw(t, &pod),
 					Namespace: sourceKubeNS,
 				},
 			}
@@ -638,7 +639,7 @@ func TestHandler_MutateWithNamespaces_Annotation(t *testing.T) {
 			for _, patch := range resp.Patches {
 				if patch.Path == "/metadata/annotations" {
 					for annotationName, annotationValue := range patch.Value.(map[string]interface{}) {
-						if annotationName == annotationConsulNamespace {
+						if annotationName == connectinject.annotationConsulNamespace {
 							consulNamespaceAnnotationValue = annotationValue.(string)
 						}
 					}
